@@ -174,10 +174,15 @@ public:
 	FGameplayTag Attributes_Vital_MaxHealth;
 	FGameplayTag Attributes_Vital_HealthRegeneration;
 	FGameplayTag Attributes_Vital_Food;
+	FGameplayTag Attributes_Vital_MaxFood;
 	FGameplayTag Attributes_Vital_Water;
+	FGameplayTag Attributes_Vital_MaxWater;
 	FGameplayTag Attributes_Vital_Warmth;
+	FGameplayTag Attributes_Vital_MaxWarmth;
 	FGameplayTag Attributes_Vital_Morale;
+	FGameplayTag Attributes_Vital_MaxMorale;
 	FGameplayTag Attributes_Vital_Trust;
+	FGameplayTag Attributes_Vital_MaxTrust;
 
 	FGameplayTag Attributes_Meta_IncomingDamage;
 	FGameplayTag Attributes_Meta_IncomingHeal;

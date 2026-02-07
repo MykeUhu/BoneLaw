@@ -13,6 +13,8 @@ UStoneOverlayWidgetController* AStoneHUD::GetOverlayWidgetController(const FSton
 		OverlayWidgetController = NewObject<UStoneOverlayWidgetController>(this, OverlayWidgetControllerClass);
 		OverlayWidgetController->SetWidgetControllerParams(WCParams);
 		OverlayWidgetController->BindCallbacksToDependencies();
+		
+		return OverlayWidgetController;
 	}
 	return OverlayWidgetController;
 }

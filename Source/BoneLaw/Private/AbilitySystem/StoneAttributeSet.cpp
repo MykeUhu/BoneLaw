@@ -26,16 +26,23 @@ UStoneAttributeSet::UStoneAttributeSet()
 	TagsToAttributes.Add(GameplayTags.Attributes_Secondary_CraftSpeed, GetCraftSpeedAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Secondary_GatherEfficiency, GetGatherEfficiencyAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Secondary_InjuryResistance, GetInjuryResistanceAttribute);
-	TagsToAttributes.Add(GameplayTags.Attributes_Vital_HealthRegeneration, GetHealthRegenerationAttribute);
-	TagsToAttributes.Add(GameplayTags.Attributes_Vital_MaxHealth, GetMaxHealthAttribute);
 
 	/* Vital Attributes */
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_Health, GetHealthAttribute);
+	TagsToAttributes.Add(GameplayTags.Attributes_Vital_HealthRegeneration, GetHealthRegenerationAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_Food, GetFoodAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_Water, GetWaterAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_Warmth, GetWarmthAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_Morale, GetMoraleAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_Trust, GetTrustAttribute);
+	
+	TagsToAttributes.Add(GameplayTags.Attributes_Vital_MaxHealth, GetMaxHealthAttribute);
+	TagsToAttributes.Add(GameplayTags.Attributes_Vital_MaxFood, GetMaxFoodAttribute);
+	TagsToAttributes.Add(GameplayTags.Attributes_Vital_MaxWater, GetMaxWaterAttribute);
+	TagsToAttributes.Add(GameplayTags.Attributes_Vital_MaxWarmth, GetMaxWarmthAttribute);
+	TagsToAttributes.Add(GameplayTags.Attributes_Vital_MaxMorale, GetMaxMoraleAttribute);
+	TagsToAttributes.Add(GameplayTags.Attributes_Vital_MaxTrust, GetMaxTrustAttribute);
+
 
 	/* Culture Attributes */
 	TagsToAttributes.Add(GameplayTags.Attributes_Culture_Empathy, GetCultureEmpathyAttribute);
@@ -86,13 +93,20 @@ void UStoneAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, HealthRegeneration, COND_None, REPNOTIFY_Always);
 
 	// Vital
-	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, Health, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, Food, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, Water, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, Warmth, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, Morale, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, Trust, COND_None, REPNOTIFY_Always);
+	
+	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, MaxFood,   COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, MaxWater,  COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, MaxWarmth, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, MaxMorale, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, MaxTrust,  COND_None, REPNOTIFY_Always);
+
 
 	// Culture
 	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, CultureEmpathy, COND_None, REPNOTIFY_Always);
@@ -127,12 +141,33 @@ void UStoneAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 {
 	Super::PreAttributeChange(Attribute, NewValue);
 
-	// Aura pattern: only clamp vital resources here
+	// Clamp current vitals to their max caps
 	if (Attribute == GetHealthAttribute())
 	{
 		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxHealth());
 	}
+	else if (Attribute == GetFoodAttribute())
+	{
+		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxFood());
+	}
+	else if (Attribute == GetWaterAttribute())
+	{
+		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxWater());
+	}
+	else if (Attribute == GetWarmthAttribute())
+	{
+		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxWarmth());
+	}
+	else if (Attribute == GetMoraleAttribute())
+	{
+		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxMorale());
+	}
+	else if (Attribute == GetTrustAttribute())
+	{
+		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxTrust());
+	}
 }
+
 
 void UStoneAttributeSet::SetEffectProperties(const FGameplayEffectModCallbackData& Data, FEffectProperties& Props) const
 {
@@ -172,13 +207,33 @@ void UStoneAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 	FEffectProperties Props;
 	SetEffectProperties(Data, Props);
 
-	// Aura pattern: clamp Health after any direct write
+	// Clamp after any direct modifications
 	if (Data.EvaluatedData.Attribute == GetHealthAttribute())
 	{
 		SetHealth(FMath::Clamp(GetHealth(), 0.f, GetMaxHealth()));
 	}
+	else if (Data.EvaluatedData.Attribute == GetFoodAttribute())
+	{
+		SetFood(FMath::Clamp(GetFood(), 0.f, GetMaxFood()));
+	}
+	else if (Data.EvaluatedData.Attribute == GetWaterAttribute())
+	{
+		SetWater(FMath::Clamp(GetWater(), 0.f, GetMaxWater()));
+	}
+	else if (Data.EvaluatedData.Attribute == GetWarmthAttribute())
+	{
+		SetWarmth(FMath::Clamp(GetWarmth(), 0.f, GetMaxWarmth()));
+	}
+	else if (Data.EvaluatedData.Attribute == GetMoraleAttribute())
+	{
+		SetMorale(FMath::Clamp(GetMorale(), 0.f, GetMaxMorale()));
+	}
+	else if (Data.EvaluatedData.Attribute == GetTrustAttribute())
+	{
+		SetTrust(FMath::Clamp(GetTrust(), 0.f, GetMaxTrust()));
+	}
 
-	// Meta: IncomingDamage (Aura pattern: read, reset, apply)
+	// Meta: IncomingDamage
 	if (Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
 	{
 		const float LocalIncomingDamage = GetIncomingDamage();
@@ -190,7 +245,7 @@ void UStoneAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 		}
 	}
 
-	// Meta: IncomingHeal (Stone-specific, same pattern as IncomingDamage)
+	// Meta: IncomingHeal
 	if (Data.EvaluatedData.Attribute == GetIncomingHealAttribute())
 	{
 		const float LocalIncomingHeal = GetIncomingHeal();
@@ -235,13 +290,19 @@ void UStoneAttributeSet::OnRep_InjuryResistance(const FGameplayAttributeData& Ol
 void UStoneAttributeSet::OnRep_HealthRegeneration(const FGameplayAttributeData& OldHealthRegeneration) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, HealthRegeneration, OldHealthRegeneration); }
 
 // Vital
-void UStoneAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, MaxHealth, OldMaxHealth); }
 void UStoneAttributeSet::OnRep_Health(const FGameplayAttributeData& OldHealth) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Health, OldHealth); }
 void UStoneAttributeSet::OnRep_Food(const FGameplayAttributeData& OldFood) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Food, OldFood); }
 void UStoneAttributeSet::OnRep_Water(const FGameplayAttributeData& OldWater) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Water, OldWater); }
 void UStoneAttributeSet::OnRep_Warmth(const FGameplayAttributeData& OldWarmth) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Warmth, OldWarmth); }
 void UStoneAttributeSet::OnRep_Morale(const FGameplayAttributeData& OldMorale) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Morale, OldMorale); }
 void UStoneAttributeSet::OnRep_Trust(const FGameplayAttributeData& OldTrust) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Trust, OldTrust); }
+
+void UStoneAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, MaxHealth, OldMaxHealth); }
+void UStoneAttributeSet::OnRep_MaxFood(const FGameplayAttributeData& OldMaxFood) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, MaxFood, OldMaxFood); }
+void UStoneAttributeSet::OnRep_MaxWater(const FGameplayAttributeData& OldMaxWater) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, MaxWater, OldMaxWater); }
+void UStoneAttributeSet::OnRep_MaxWarmth(const FGameplayAttributeData& OldMaxWarmth) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, MaxWarmth, OldMaxWarmth); }
+void UStoneAttributeSet::OnRep_MaxMorale(const FGameplayAttributeData& OldMaxMorale) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, MaxMorale, OldMaxMorale); }
+void UStoneAttributeSet::OnRep_MaxTrust(const FGameplayAttributeData& OldMaxTrust) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, MaxTrust, OldMaxTrust); }
 
 // Culture
 void UStoneAttributeSet::OnRep_CultureEmpathy(const FGameplayAttributeData& OldCultureEmpathy) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureEmpathy, OldCultureEmpathy); }

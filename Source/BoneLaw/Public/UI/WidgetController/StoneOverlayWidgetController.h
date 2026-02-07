@@ -14,6 +14,8 @@ class UStoneEventData;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneOverlaySnapshotSig, const FStoneSnapshot&, Snapshot);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneOverlayEventSig, const UStoneEventData*, Event);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAttributeChangedSignature, float, NewValue);
+
 /**
  * UStoneOverlayWidgetController - Main HUD Widget Controller
  * Following Aura pattern + Stone-specific RunSubsystem for events
@@ -27,6 +29,42 @@ public:
 	virtual void BroadcastInitialValues() override;
 	virtual void BindCallbacksToDependencies() override;
 
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnHealthChanged;
+
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnMaxHealthChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnFoodChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnMaxFoodChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnWaterChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnMaxWaterChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnWarmthChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnMaxWarmthChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnMoraleChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnMaxMoraleChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnTrustChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
+	FOnAttributeChangedSignature OnMaxTrustChanged;
+	
 	// === Delegates for Blueprint UI binding ===
 	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
 	FStoneOverlaySnapshotSig OnOverlaySnapshotChanged;
