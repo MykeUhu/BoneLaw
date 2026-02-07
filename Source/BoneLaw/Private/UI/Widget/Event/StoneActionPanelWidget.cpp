@@ -3,6 +3,7 @@
 #include "UI/Widget/Event/StoneActionPanelWidget.h"
 
 #include "Components/ProgressBar.h"
+#include "Components/TextBlock.h"
 
 #include "Data/StoneActionDefinitionData.h"
 #include "Data/StoneEventData.h"
@@ -11,6 +12,7 @@
 #include "Runtime/StoneRunSubsystem.h"
 
 #include "UI/CustomElements/StoneCustomButton.h"
+#include "UI/CustomElements/StoneCustomTextBlock.h"
 #include "UI/WidgetController/StoneOverlayWidgetController.h"
 #include "UI/WidgetController/StoneWidgetController.h"
 
@@ -29,6 +31,7 @@ void UStoneActionPanelWidget::NativeConstruct()
 
 	RefreshEnabledState();
 	RefreshProgressVisual();
+	RefreshInfoVisual();
 }
 
 void UStoneActionPanelWidget::NativeDestruct()
@@ -62,6 +65,7 @@ void UStoneActionPanelWidget::SetOverlayController(UStoneWidgetController* InCon
 
 		RefreshEnabledState();
 		RefreshProgressVisual();
+		RefreshInfoVisual();
 		return;
 	}
 
@@ -74,6 +78,7 @@ void UStoneActionPanelWidget::SetOverlayController(UStoneWidgetController* InCon
 
 	RefreshEnabledState();
 	RefreshProgressVisual();
+	RefreshInfoVisual();
 }
 
 void UStoneActionPanelWidget::BindAll()
@@ -120,22 +125,26 @@ void UStoneActionPanelWidget::HandleOverlaySnapshotChanged(const FStoneSnapshot&
 {
 	RefreshEnabledState();
 	RefreshProgressVisual();
+	RefreshInfoVisual();
 }
 
 void UStoneActionPanelWidget::HandleOverlayEventChanged(const UStoneEventData* /*Event*/)
 {
 	RefreshEnabledState();
+	RefreshInfoVisual();
 }
 
 void UStoneActionPanelWidget::HandleActionStateChanged()
 {
 	RefreshEnabledState();
 	RefreshProgressVisual();
+	RefreshInfoVisual();
 }
 
 void UStoneActionPanelWidget::HandleActionProgressChanged(float /*Progress01*/)
 {
 	RefreshProgressVisual();
+	RefreshInfoVisual();
 }
 
 void UStoneActionPanelWidget::RefreshEnabledState()
@@ -188,6 +197,76 @@ void UStoneActionPanelWidget::RefreshProgressVisual()
 	PB_ActionProgress->SetPercent(FMath::Clamp(Progress01, 0.f, 1.f));
 }
 
+void UStoneActionPanelWidget::RefreshInfoVisual()
+{
+	// If the BP doesn't have these TextBlocks, we just do nothing (BindWidgetOptional).
+	if (!TB_ActionTitle && !TB_ActionSubtitle && !TB_ActionETA && !TB_ActionStatus)
+	{
+		return;
+	}
+
+	const bool bRunning = (ActionSubsystem && ActionSubsystem->IsActionRunning());
+
+	// Title
+	if (TB_ActionTitle)
+	{
+		if (bRunning)
+		{
+			const FText Title = ActionSubsystem->GetActionTitleText();
+			TB_ActionTitle->SetText(Title.IsEmpty() ? FText::FromString(TEXT("Action")) : Title);
+		}
+		else
+		{
+			// Show next selectable action as a preview (optional)
+			if (ActionToStart)
+			{
+				const FText Preview = ActionToStart->DisplayName.IsEmpty()
+					? FText::FromString(ActionToStart->GetName())
+					: ActionToStart->DisplayName;
+
+				TB_ActionTitle->SetText(Preview);
+			}
+			else
+			{
+				TB_ActionTitle->SetText(FText::FromString(TEXT("Actions")));
+			}
+		}
+	}
+
+	// Subtitle (phase)
+	if (TB_ActionSubtitle)
+	{
+		TB_ActionSubtitle->SetText(bRunning ? ActionSubsystem->GetPhaseText() : FText::GetEmpty());
+	}
+
+	// ETA
+	if (TB_ActionETA)
+	{
+		if (bRunning)
+		{
+			const float Remaining = ActionSubsystem->GetRemainingSeconds();
+			TB_ActionETA->SetText(FText::FromString(FString::Printf(TEXT("ETA: %.0fs"), Remaining)));
+		}
+		else
+		{
+			TB_ActionETA->SetText(FText::GetEmpty());
+		}
+	}
+
+	// Status (paused by event/pause)
+	if (TB_ActionStatus)
+	{
+		if (bRunning && ActionSubsystem->IsPausedByGameState())
+		{
+			TB_ActionStatus->SetText(FText::FromString(TEXT("Paused")));
+		}
+		else
+		{
+			TB_ActionStatus->SetText(FText::GetEmpty());
+		}
+	}
+}
+
 void UStoneActionPanelWidget::HandleStartActionClicked()
 {
 	if (!ActionSubsystem)
@@ -211,12 +290,15 @@ void UStoneActionPanelWidget::HandleStartActionClicked()
 			Run->HasOpenEvent(), Run->IsAnyRealtimeActionActive());
 
 		RefreshEnabledState();
+		RefreshProgressVisual();
+		RefreshInfoVisual();
 		return;
 	}
 	if (ActionSubsystem->IsActionRunning())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[StoneUI][ActionPanel] StartAction blocked: Action already running"));
 		RefreshEnabledState();
+		RefreshInfoVisual();
 		return;
 	}
 
@@ -225,6 +307,7 @@ void UStoneActionPanelWidget::HandleStartActionClicked()
 
 	RefreshEnabledState();
 	RefreshProgressVisual();
+	RefreshInfoVisual();
 }
 
 UStoneOverlayWidgetController* UStoneActionPanelWidget::GetOverlayController() const

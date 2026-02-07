@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "StoneActionSubsystem.generated.h"
 
@@ -10,10 +11,10 @@ class UStoneActionDefinitionData;
 UENUM(BlueprintType)
 enum class EStoneActionPhase : uint8
 {
-	None UMETA(DisplayName="None"),
-	Outbound UMETA(DisplayName="Outbound"),
-	Arrival UMETA(DisplayName="Arrival"),
-	Return UMETA(DisplayName="Return"),
+	None      UMETA(DisplayName="None"),
+	Outbound  UMETA(DisplayName="Outbound"),
+	Arrival   UMETA(DisplayName="Arrival"),
+	Return    UMETA(DisplayName="Return"),
 	Completed UMETA(DisplayName="Completed")
 };
 
@@ -29,26 +30,44 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
-	// Start/Stop (Blueprint passes the DataAsset reference)
+	// Start/Stop
 	UFUNCTION(BlueprintCallable, Category="Stone|Action")
 	bool StartAction(UStoneActionDefinitionData* ActionDef);
 
 	UFUNCTION(BlueprintCallable, Category="Stone|Action")
 	void StopCurrentAction(bool bForceReturnHomeEvent);
 
-	// UI queries
+	// State
 	UFUNCTION(BlueprintPure, Category="Stone|Action")
 	bool IsActionRunning() const { return bActionRunning; }
 
 	UFUNCTION(BlueprintPure, Category="Stone|Action")
 	EStoneActionPhase GetPhase() const { return Phase; }
 
+	// Progress
 	UFUNCTION(BlueprintPure, Category="Stone|Action")
 	float GetActionProgress01() const;
 
 	UFUNCTION(BlueprintPure, Category="Stone|Action")
 	float GetLegProgress01() const;
 
+	// ===== UI-friendly getters (SSOT: CurrentDef + Phase + Time) =====
+	UFUNCTION(BlueprintPure, Category="Stone|Action")
+	FText GetActionTitleText() const;
+
+	UFUNCTION(BlueprintPure, Category="Stone|Action")
+	FText GetActionDescriptionText() const;
+
+	UFUNCTION(BlueprintPure, Category="Stone|Action")
+	FText GetPhaseText() const;
+
+	UFUNCTION(BlueprintPure, Category="Stone|Action")
+	float GetRemainingSeconds() const;
+
+	UFUNCTION(BlueprintPure, Category="Stone|Action")
+	bool IsPausedByGameState() const;
+
+	// Delegates
 	UPROPERTY(BlueprintAssignable, Category="Stone|Action")
 	FStoneActionStateChanged OnActionStateChanged;
 
@@ -89,8 +108,18 @@ private:
 	float RandomChance01 = 0.25f;
 	bool bAllowImmediateRandom = false;
 
-	// Which temporary packs we activated (so we can clear them)
+	// Tags applied to run while action active
+	FGameplayTagContainer ActiveStateTags;
+
+	// Temporary packs activated by this action
 	TArray<FName> ActivatedPackIds;
+	
+		
+	// Prevent random rolls in the same tick as a phase transition (avoids boundary artifacts).
+	bool bSkipRandomThisTick = false;
+
+	// Ensure we queue "return home" gate event only once per action run.
+	bool bReturnHomeQueued = false;
 
 	FRandomStream RNG;
 };

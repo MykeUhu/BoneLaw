@@ -25,10 +25,6 @@ class BONELAW_API UStoneContentSettings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
-	// Registry Asset (Design decision, not Engine SSOT)
-	UPROPERTY(EditAnywhere, Config, Category="Stone|Registry")
-	TSoftObjectPtr<class UStoneAttributeRegistry> AttributeRegistry;
-
 	// Required payoff events (Bible gate)
 	UPROPERTY(EditAnywhere, Config, Category="Stone|Validation")
 	TArray<FName> RequiredWorldlineEventIds;

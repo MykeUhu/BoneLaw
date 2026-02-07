@@ -21,8 +21,8 @@ void UStoneAbilitySystemComponent::AddCharacterAbilities(const TArray<TSubclassO
 
 		if (const UStoneGameplayAbility* StoneAbility = Cast<UStoneGameplayAbility>(AbilitySpec.Ability))
 		{
-			AbilitySpec.DynamicAbilityTags.AddTag(StoneAbility->StartupInputTag);
-			AbilitySpec.DynamicAbilityTags.AddTag(FStoneGameplayTags::Get().Abilities_Status_Equipped);
+			AbilitySpec.GetDynamicSpecSourceTags().AddTag(StoneAbility->StartupInputTag);
+			AbilitySpec.GetDynamicSpecSourceTags().AddTag(FStoneGameplayTags::Get().Abilities_Status_Equipped);
 		}
 
 		GiveAbility(AbilitySpec);
@@ -39,7 +39,7 @@ void UStoneAbilitySystemComponent::AddCharacterPassiveAbilities(const TArray<TSu
 		if (!AbilityClass) continue;
 
 		FGameplayAbilitySpec AbilitySpec(AbilityClass, 1);
-		AbilitySpec.DynamicAbilityTags.AddTag(FStoneGameplayTags::Get().Abilities_Status_Equipped);
+		AbilitySpec.GetDynamicSpecSourceTags().AddTag(FStoneGameplayTags::Get().Abilities_Status_Equipped);
 
 		GiveAbilityAndActivateOnce(AbilitySpec);
 	}

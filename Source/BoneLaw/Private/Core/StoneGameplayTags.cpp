@@ -400,6 +400,39 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 		);
 
 	// =========================
+	// Milestone Event Tags (injected events triggered by worldline thresholds)
+	// =========================
+	GameplayTags.MilestoneEvent_Cannibal_FirstTime = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("MilestoneEvent.Cannibal.FirstTime"),
+		FString("Milestone event: First cannibalism opportunity")
+		);
+	
+	GameplayTags.MilestoneEvent_Tools_Breakthrough = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("MilestoneEvent.Tools.Breakthrough"),
+		FString("Milestone event: Tool-making breakthrough")
+		);
+	
+	GameplayTags.MilestoneEvent_Healer_Breakthrough = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("MilestoneEvent.Healer.Breakthrough"),
+		FString("Milestone event: Healing breakthrough")
+		);
+	
+	GameplayTags.MilestoneEvent_Raiders_FirstContact = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("MilestoneEvent.Raiders.FirstContact"),
+		FString("Milestone event: First raider contact")
+		);
+	
+	GameplayTags.MilestoneEvent_Spirits_Awakening = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("MilestoneEvent.Spirits.Awakening"),
+		FString("Milestone event: Spiritual awakening")
+		);
+	
+	GameplayTags.MilestoneEvent_Taboo_Shattered = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("MilestoneEvent.Taboo.Shattered"),
+		FString("Milestone event: A major taboo has been shattered")
+		);
+
+	// =========================
 	// Attributes (GAS)
 	// =========================
 	GameplayTags.Attributes_Primary_Strength = UGameplayTagsManager::Get().AddNativeGameplayTag(

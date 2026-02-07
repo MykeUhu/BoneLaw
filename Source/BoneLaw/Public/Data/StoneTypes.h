@@ -88,7 +88,16 @@ struct FStoneScheduledEvent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	int32 Offset = 1;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	/** 
+	 * Event identifier - use one of these two options:
+	 * - EventTag (preferred): GameplayTag referencing the event. Allows data-driven configuration.
+	 * - EventId (legacy): FName for direct asset lookup. Use EventTag instead when possible.
+	 * If both are set, EventTag takes precedence.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="MilestoneEvent,Event"))
+	FGameplayTag EventTag;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(DisplayName="Event ID (Legacy)"))
 	FName EventId;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
@@ -103,6 +112,9 @@ struct FStoneScheduledEvent
 
 	UPROPERTY()
 	int32 DueChoiceCount = 0;
+
+	/** Returns true if this scheduled event has a valid identifier (either Tag or Id). */
+	bool IsValid() const { return EventTag.IsValid() || !EventId.IsNone(); }
 };
 
 USTRUCT(BlueprintType)
@@ -132,26 +144,39 @@ struct FStoneOutcome
 	FStoneScheduledEvent Scheduled;
 };
 
+/**
+ * Time state for a run. All time data comes from Ultra Dynamic Sky (UDS).
+ * C++ does NOT calculate time internally - it only tracks counters incremented by Blueprint.
+ * 
+ * Blueprint (GameMode/PlayerController) binds to UDS events:
+ * - OnSunrise -> Call SetIsNight(false)
+ * - OnSunset -> Call SetIsNight(true) 
+ * - OnHourChanged -> Call OnHourChanged(Hour) for ambient events
+ */
 USTRUCT(BlueprintType)
 struct FStoneTimeState
 {
 	GENERATED_BODY()
 
+	/** Current day number (starts at 1, incremented on sunrise) */
 	UPROPERTY(BlueprintReadOnly)
 	int32 DayIndex = 1;
 
+	/** True if currently night (set by UDS via Blueprint) */
 	UPROPERTY(BlueprintReadOnly)
 	bool bIsNight = false;
 
-	// Optional: step-based phase in [0..1], used for UI/sky.
-	UPROPERTY(BlueprintReadOnly)
-	float TimeOfDay01 = 0.25f;
-
+	/** Total player choices/actions made this run */
 	UPROPERTY(BlueprintReadOnly)
 	int32 TotalChoices = 0;
 
+	/** Total nights that have passed (incremented on sunset) */
 	UPROPERTY(BlueprintReadOnly)
 	int32 TotalNightsPassed = 0;
+
+	/** Current hour (0-23, set by UDS via Blueprint) - for UI display only */
+	UPROPERTY(BlueprintReadOnly)
+	int32 CurrentHour = 6;
 };
 
 USTRUCT(BlueprintType)

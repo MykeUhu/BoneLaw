@@ -1,6 +1,5 @@
 ﻿// Copyright by MykeUhu
 
-
 #include "Core/StonePlayerState.h"
 
 #include "AbilitySystemComponent.h"
@@ -26,9 +25,26 @@ void AStonePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME(AStonePlayerState, Level);
 }
 
+// === IAbilitySystemInterface ===
 UAbilitySystemComponent* AStonePlayerState::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComponent;
+}
+
+// === Typed Accessors ===
+UStoneAbilitySystemComponent* AStonePlayerState::GetStoneAbilitySystemComponent() const
+{
+	return AbilitySystemComponent;
+}
+
+UStoneAttributeSet* AStonePlayerState::GetStoneAttributeSet() const
+{
+	return AttributeSet;
+}
+
+UAttributeSet* AStonePlayerState::GetAttributeSet() const
+{
+	return AttributeSet;
 }
 
 void AStonePlayerState::AddToLevel(int32 InLevel)

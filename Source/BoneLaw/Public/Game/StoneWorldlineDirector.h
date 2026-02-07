@@ -7,7 +7,6 @@
 
 struct FStoneTimeState;
 struct FStoneScheduledEvent;
-class UStoneAttributeRegistry;
 class UAbilitySystemComponent;
 
 UENUM()
@@ -40,7 +39,7 @@ class BONELAW_API UStoneWorldlineDirector : public UObject
 	GENERATED_BODY()
 
 public:
-	void Initialize(UAbilitySystemComponent* InASC, const UStoneAttributeRegistry* InRegistry);
+	void Initialize(UAbilitySystemComponent* InASC);
 
 	// Called after every choice/time step
 	void UpdateWorldline(FGameplayTagContainer& RunTags, FStoneTimeState& Time, TArray<FStoneScheduledEvent>& OutNewSchedules);
@@ -51,9 +50,6 @@ public:
 private:
 	UPROPERTY()
 	TObjectPtr<UAbilitySystemComponent> ASC;
-
-	UPROPERTY()
-	TObjectPtr<const UStoneAttributeRegistry> Registry;
 
 	UPROPERTY()
 	TMap<EStoneWorldAxis, FStoneWorldAxisState> Axes;

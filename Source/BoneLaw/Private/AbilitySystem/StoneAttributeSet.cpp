@@ -13,23 +13,23 @@ UStoneAttributeSet::UStoneAttributeSet()
 {
 	const FStoneGameplayTags& GameplayTags = FStoneGameplayTags::Get();
 
-	// Primary
+	/* Primary Attributes */
 	TagsToAttributes.Add(GameplayTags.Attributes_Primary_Strength, GetStrengthAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Primary_Intelligence, GetIntelligenceAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Primary_Endurance, GetEnduranceAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Primary_Willpower, GetWillpowerAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Primary_Social, GetSocialAttribute);
 
-	// Secondary
+	/* Secondary Attributes */
 	TagsToAttributes.Add(GameplayTags.Attributes_Secondary_CarryCapacity, GetCarryCapacityAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Secondary_TravelSpeed, GetTravelSpeedAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Secondary_CraftSpeed, GetCraftSpeedAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Secondary_GatherEfficiency, GetGatherEfficiencyAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Secondary_InjuryResistance, GetInjuryResistanceAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_HealthRegeneration, GetHealthRegenerationAttribute);
-
-	// Vital
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_MaxHealth, GetMaxHealthAttribute);
+
+	/* Vital Attributes */
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_Health, GetHealthAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_Food, GetFoodAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_Water, GetWaterAttribute);
@@ -37,7 +37,7 @@ UStoneAttributeSet::UStoneAttributeSet()
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_Morale, GetMoraleAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Vital_Trust, GetTrustAttribute);
 
-	// Culture
+	/* Culture Attributes */
 	TagsToAttributes.Add(GameplayTags.Attributes_Culture_Empathy, GetCultureEmpathyAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Culture_Hierarchy, GetCultureHierarchyAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Culture_Violence, GetCultureViolenceAttribute);
@@ -48,7 +48,7 @@ UStoneAttributeSet::UStoneAttributeSet()
 	TagsToAttributes.Add(GameplayTags.Attributes_Culture_TabooStrictness, GetCultureTabooStrictnessAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Culture_DietBalance, GetCultureDietBalanceAttribute);
 
-	// Knowledge
+	/* Knowledge Attributes */
 	TagsToAttributes.Add(GameplayTags.Attributes_Knowledge_Medicine, GetKnowledgeMedicineAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Knowledge_Hunting, GetKnowledgeHuntingAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Knowledge_Survival, GetKnowledgeSurvivalAttribute);
@@ -57,17 +57,13 @@ UStoneAttributeSet::UStoneAttributeSet()
 	TagsToAttributes.Add(GameplayTags.Attributes_Knowledge_Courage, GetKnowledgeCourageAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Knowledge_Spiritual, GetKnowledgeSpiritualAttribute);
 
-	// Worldline Axis
+	/* Worldline Axis Attributes */
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_MercyRuthless, GetWorldlineMercyRuthlessAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_TraditionInnovation, GetWorldlineTraditionInnovationAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_CollectiveIndividual, GetWorldlineCollectiveIndividualAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_SpiritualPractical, GetWorldlineSpiritualPracticalAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_XenoOpenFear, GetWorldlineXenoOpenFearAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_TabooLooseStrict, GetWorldlineTabooLooseStrictAttribute);
-
-	// Meta (transient, not saved)
-	TagsToAttributes.Add(GameplayTags.Attributes_Meta_IncomingDamage, GetIncomingDamageAttribute);
-	TagsToAttributes.Add(GameplayTags.Attributes_Meta_IncomingHeal, GetIncomingHealAttribute);
 }
 
 void UStoneAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -127,47 +123,14 @@ void UStoneAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME_CONDITION_NOTIFY(UStoneAttributeSet, WorldlineTabooLooseStrict, COND_None, REPNOTIFY_Always);
 }
 
-static float Clamp01_100(float V) { return FMath::Clamp(V, 0.f, 100.f); }
-
 void UStoneAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
 {
 	Super::PreAttributeChange(Attribute, NewValue);
 
-	if (Attribute == GetMaxHealthAttribute())
-	{
-		NewValue = FMath::Max(NewValue, 1.f);
-		bTopOffHealth = true;
-		return;
-	}
-
+	// Aura pattern: only clamp vital resources here
 	if (Attribute == GetHealthAttribute())
 	{
 		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxHealth());
-		return;
-	}
-
-	// 0..100 ranges
-	if (Attribute == GetFoodAttribute() || Attribute == GetWaterAttribute() || Attribute == GetWarmthAttribute()
-		|| Attribute == GetMoraleAttribute() || Attribute == GetTrustAttribute()
-		|| Attribute == GetCultureEmpathyAttribute() || Attribute == GetCultureHierarchyAttribute() || Attribute == GetCultureViolenceAttribute()
-		|| Attribute == GetCultureSpiritualityAttribute() || Attribute == GetCultureInnovationAttribute() || Attribute == GetCultureCollectivismAttribute()
-		|| Attribute == GetCultureXenophobiaAttribute() || Attribute == GetCultureTabooStrictnessAttribute() || Attribute == GetCultureDietBalanceAttribute()
-		|| Attribute == GetKnowledgeMedicineAttribute() || Attribute == GetKnowledgeHuntingAttribute() || Attribute == GetKnowledgeSurvivalAttribute()
-		|| Attribute == GetKnowledgeCraftAttribute() || Attribute == GetKnowledgeSocialAttribute() || Attribute == GetKnowledgeCourageAttribute()
-		|| Attribute == GetKnowledgeSpiritualAttribute()
-		|| Attribute == GetWorldlineMercyRuthlessAttribute() || Attribute == GetWorldlineTraditionInnovationAttribute() || Attribute == GetWorldlineCollectiveIndividualAttribute()
-		|| Attribute == GetWorldlineSpiritualPracticalAttribute() || Attribute == GetWorldlineXenoOpenFearAttribute() || Attribute == GetWorldlineTabooLooseStrictAttribute())
-	{
-		NewValue = Clamp01_100(NewValue);
-		return;
-	}
-
-	// Secondary (keep non-negative where it makes sense)
-	if (Attribute == GetCarryCapacityAttribute() || Attribute == GetTravelSpeedAttribute() || Attribute == GetCraftSpeedAttribute()
-		|| Attribute == GetGatherEfficiencyAttribute() || Attribute == GetInjuryResistanceAttribute() || Attribute == GetHealthRegenerationAttribute())
-	{
-		NewValue = FMath::Max(NewValue, 0.f);
-		return;
 	}
 }
 
@@ -209,140 +172,101 @@ void UStoneAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 	FEffectProperties Props;
 	SetEffectProperties(Data, Props);
 
-	// Meta -> Vital application (BoneLaw = simple)
-	if (Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
-	{
-		const float Damage = GetIncomingDamage();
-		SetIncomingDamage(0.f);
-		if (Damage > 0.f)
-		{
-			SetHealth(FMath::Clamp(GetHealth() - Damage, 0.f, GetMaxHealth()));
-		}
-		return;
-	}
-
-	if (Data.EvaluatedData.Attribute == GetIncomingHealAttribute())
-	{
-		const float Heal = GetIncomingHeal();
-		SetIncomingHeal(0.f);
-		if (Heal > 0.f)
-		{
-			SetHealth(FMath::Clamp(GetHealth() + Heal, 0.f, GetMaxHealth()));
-		}
-		return;
-	}
-
-	// Safety clamps on any direct writes
+	// Aura pattern: clamp Health after any direct write
 	if (Data.EvaluatedData.Attribute == GetHealthAttribute())
 	{
 		SetHealth(FMath::Clamp(GetHealth(), 0.f, GetMaxHealth()));
 	}
-	else if (Data.EvaluatedData.Attribute == GetMaxHealthAttribute())
+
+	// Meta: IncomingDamage (Aura pattern: read, reset, apply)
+	if (Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
 	{
-		SetMaxHealth(FMath::Max(GetMaxHealth(), 1.f));
-		SetHealth(FMath::Clamp(GetHealth(), 0.f, GetMaxHealth()));
+		const float LocalIncomingDamage = GetIncomingDamage();
+		SetIncomingDamage(0.f);
+		if (LocalIncomingDamage > 0.f)
+		{
+			const float NewHealth = GetHealth() - LocalIncomingDamage;
+			SetHealth(FMath::Clamp(NewHealth, 0.f, GetMaxHealth()));
+		}
 	}
-	else if (Data.EvaluatedData.Attribute == GetFoodAttribute()) SetFood(Clamp01_100(GetFood()));
-	else if (Data.EvaluatedData.Attribute == GetWaterAttribute()) SetWater(Clamp01_100(GetWater()));
-	else if (Data.EvaluatedData.Attribute == GetWarmthAttribute()) SetWarmth(Clamp01_100(GetWarmth()));
-	else if (Data.EvaluatedData.Attribute == GetMoraleAttribute()) SetMorale(Clamp01_100(GetMorale()));
-	else if (Data.EvaluatedData.Attribute == GetTrustAttribute()) SetTrust(Clamp01_100(GetTrust()));
-	else if (Data.EvaluatedData.Attribute == GetCultureEmpathyAttribute()) SetCultureEmpathy(Clamp01_100(GetCultureEmpathy()));
-	else if (Data.EvaluatedData.Attribute == GetCultureHierarchyAttribute()) SetCultureHierarchy(Clamp01_100(GetCultureHierarchy()));
-	else if (Data.EvaluatedData.Attribute == GetCultureViolenceAttribute()) SetCultureViolence(Clamp01_100(GetCultureViolence()));
-	else if (Data.EvaluatedData.Attribute == GetCultureSpiritualityAttribute()) SetCultureSpirituality(Clamp01_100(GetCultureSpirituality()));
-	else if (Data.EvaluatedData.Attribute == GetCultureInnovationAttribute()) SetCultureInnovation(Clamp01_100(GetCultureInnovation()));
-	else if (Data.EvaluatedData.Attribute == GetCultureCollectivismAttribute()) SetCultureCollectivism(Clamp01_100(GetCultureCollectivism()));
-	else if (Data.EvaluatedData.Attribute == GetCultureXenophobiaAttribute()) SetCultureXenophobia(Clamp01_100(GetCultureXenophobia()));
-	else if (Data.EvaluatedData.Attribute == GetCultureTabooStrictnessAttribute()) SetCultureTabooStrictness(Clamp01_100(GetCultureTabooStrictness()));
-	else if (Data.EvaluatedData.Attribute == GetCultureDietBalanceAttribute()) SetCultureDietBalance(Clamp01_100(GetCultureDietBalance()));
-	else if (Data.EvaluatedData.Attribute == GetKnowledgeMedicineAttribute()) SetKnowledgeMedicine(Clamp01_100(GetKnowledgeMedicine()));
-	else if (Data.EvaluatedData.Attribute == GetKnowledgeHuntingAttribute()) SetKnowledgeHunting(Clamp01_100(GetKnowledgeHunting()));
-	else if (Data.EvaluatedData.Attribute == GetKnowledgeSurvivalAttribute()) SetKnowledgeSurvival(Clamp01_100(GetKnowledgeSurvival()));
-	else if (Data.EvaluatedData.Attribute == GetKnowledgeCraftAttribute()) SetKnowledgeCraft(Clamp01_100(GetKnowledgeCraft()));
-	else if (Data.EvaluatedData.Attribute == GetKnowledgeSocialAttribute()) SetKnowledgeSocial(Clamp01_100(GetKnowledgeSocial()));
-	else if (Data.EvaluatedData.Attribute == GetKnowledgeCourageAttribute()) SetKnowledgeCourage(Clamp01_100(GetKnowledgeCourage()));
-	else if (Data.EvaluatedData.Attribute == GetKnowledgeSpiritualAttribute()) SetKnowledgeSpiritual(Clamp01_100(GetKnowledgeSpiritual()));
-	else if (Data.EvaluatedData.Attribute == GetWorldlineMercyRuthlessAttribute()) SetWorldlineMercyRuthless(Clamp01_100(GetWorldlineMercyRuthless()));
-	else if (Data.EvaluatedData.Attribute == GetWorldlineTraditionInnovationAttribute()) SetWorldlineTraditionInnovation(Clamp01_100(GetWorldlineTraditionInnovation()));
-	else if (Data.EvaluatedData.Attribute == GetWorldlineCollectiveIndividualAttribute()) SetWorldlineCollectiveIndividual(Clamp01_100(GetWorldlineCollectiveIndividual()));
-	else if (Data.EvaluatedData.Attribute == GetWorldlineSpiritualPracticalAttribute()) SetWorldlineSpiritualPractical(Clamp01_100(GetWorldlineSpiritualPractical()));
-	else if (Data.EvaluatedData.Attribute == GetWorldlineXenoOpenFearAttribute()) SetWorldlineXenoOpenFear(Clamp01_100(GetWorldlineXenoOpenFear()));
-	else if (Data.EvaluatedData.Attribute == GetWorldlineTabooLooseStrictAttribute()) SetWorldlineTabooLooseStrict(Clamp01_100(GetWorldlineTabooLooseStrict()));
+
+	// Meta: IncomingHeal (Stone-specific, same pattern as IncomingDamage)
+	if (Data.EvaluatedData.Attribute == GetIncomingHealAttribute())
+	{
+		const float LocalIncomingHeal = GetIncomingHeal();
+		SetIncomingHeal(0.f);
+		if (LocalIncomingHeal > 0.f)
+		{
+			const float NewHealth = GetHealth() + LocalIncomingHeal;
+			SetHealth(FMath::Clamp(NewHealth, 0.f, GetMaxHealth()));
+		}
+	}
 }
 
 void UStoneAttributeSet::PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue)
 {
 	Super::PostAttributeChange(Attribute, OldValue, NewValue);
 
-	if (Attribute == GetMaxHealthAttribute())
+	// Aura pattern: top off health when MaxHealth increases (e.g. after level up)
+	if (Attribute == GetMaxHealthAttribute() && bTopOffHealth)
 	{
-		// Ensure health never exceeds MaxHealth; optionally top off when MaxHealth increases.
-		SetHealth(FMath::Clamp(GetHealth(), 0.f, GetMaxHealth()));
-		if (bTopOffHealth && NewValue > OldValue)
-		{
-			SetHealth(GetMaxHealth());
-		}
+		SetHealth(GetMaxHealth());
 		bTopOffHealth = false;
-	}
-	else if (Attribute == GetHealthAttribute())
-	{
-		SetHealth(FMath::Clamp(NewValue, 0.f, GetMaxHealth()));
 	}
 }
 
 // =========================
-// OnRep
+// OnRep - Aura pattern: parameter named after attribute
 // =========================
 
 // Primary
-void UStoneAttributeSet::OnRep_Strength(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Strength, OldValue); }
-void UStoneAttributeSet::OnRep_Intelligence(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Intelligence, OldValue); }
-void UStoneAttributeSet::OnRep_Endurance(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Endurance, OldValue); }
-void UStoneAttributeSet::OnRep_Willpower(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Willpower, OldValue); }
-void UStoneAttributeSet::OnRep_Social(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Social, OldValue); }
+void UStoneAttributeSet::OnRep_Strength(const FGameplayAttributeData& OldStrength) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Strength, OldStrength); }
+void UStoneAttributeSet::OnRep_Intelligence(const FGameplayAttributeData& OldIntelligence) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Intelligence, OldIntelligence); }
+void UStoneAttributeSet::OnRep_Endurance(const FGameplayAttributeData& OldEndurance) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Endurance, OldEndurance); }
+void UStoneAttributeSet::OnRep_Willpower(const FGameplayAttributeData& OldWillpower) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Willpower, OldWillpower); }
+void UStoneAttributeSet::OnRep_Social(const FGameplayAttributeData& OldSocial) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Social, OldSocial); }
 
 // Secondary
-void UStoneAttributeSet::OnRep_CarryCapacity(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CarryCapacity, OldValue); }
-void UStoneAttributeSet::OnRep_TravelSpeed(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, TravelSpeed, OldValue); }
-void UStoneAttributeSet::OnRep_CraftSpeed(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CraftSpeed, OldValue); }
-void UStoneAttributeSet::OnRep_GatherEfficiency(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, GatherEfficiency, OldValue); }
-void UStoneAttributeSet::OnRep_InjuryResistance(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, InjuryResistance, OldValue); }
-void UStoneAttributeSet::OnRep_HealthRegeneration(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, HealthRegeneration, OldValue); }
+void UStoneAttributeSet::OnRep_CarryCapacity(const FGameplayAttributeData& OldCarryCapacity) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CarryCapacity, OldCarryCapacity); }
+void UStoneAttributeSet::OnRep_TravelSpeed(const FGameplayAttributeData& OldTravelSpeed) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, TravelSpeed, OldTravelSpeed); }
+void UStoneAttributeSet::OnRep_CraftSpeed(const FGameplayAttributeData& OldCraftSpeed) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CraftSpeed, OldCraftSpeed); }
+void UStoneAttributeSet::OnRep_GatherEfficiency(const FGameplayAttributeData& OldGatherEfficiency) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, GatherEfficiency, OldGatherEfficiency); }
+void UStoneAttributeSet::OnRep_InjuryResistance(const FGameplayAttributeData& OldInjuryResistance) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, InjuryResistance, OldInjuryResistance); }
+void UStoneAttributeSet::OnRep_HealthRegeneration(const FGameplayAttributeData& OldHealthRegeneration) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, HealthRegeneration, OldHealthRegeneration); }
 
 // Vital
-void UStoneAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, MaxHealth, OldValue); }
-void UStoneAttributeSet::OnRep_Food(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Food, OldValue); }
-void UStoneAttributeSet::OnRep_Water(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Water, OldValue); }
-void UStoneAttributeSet::OnRep_Warmth(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Warmth, OldValue); }
-void UStoneAttributeSet::OnRep_Morale(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Morale, OldValue); }
-void UStoneAttributeSet::OnRep_Trust(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Trust, OldValue); }
-void UStoneAttributeSet::OnRep_Health(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Health, OldValue); }
+void UStoneAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, MaxHealth, OldMaxHealth); }
+void UStoneAttributeSet::OnRep_Health(const FGameplayAttributeData& OldHealth) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Health, OldHealth); }
+void UStoneAttributeSet::OnRep_Food(const FGameplayAttributeData& OldFood) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Food, OldFood); }
+void UStoneAttributeSet::OnRep_Water(const FGameplayAttributeData& OldWater) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Water, OldWater); }
+void UStoneAttributeSet::OnRep_Warmth(const FGameplayAttributeData& OldWarmth) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Warmth, OldWarmth); }
+void UStoneAttributeSet::OnRep_Morale(const FGameplayAttributeData& OldMorale) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Morale, OldMorale); }
+void UStoneAttributeSet::OnRep_Trust(const FGameplayAttributeData& OldTrust) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, Trust, OldTrust); }
 
 // Culture
-void UStoneAttributeSet::OnRep_CultureEmpathy(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureEmpathy, OldValue); }
-void UStoneAttributeSet::OnRep_CultureHierarchy(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureHierarchy, OldValue); }
-void UStoneAttributeSet::OnRep_CultureViolence(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureViolence, OldValue); }
-void UStoneAttributeSet::OnRep_CultureSpirituality(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureSpirituality, OldValue); }
-void UStoneAttributeSet::OnRep_CultureInnovation(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureInnovation, OldValue); }
-void UStoneAttributeSet::OnRep_CultureCollectivism(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureCollectivism, OldValue); }
-void UStoneAttributeSet::OnRep_CultureXenophobia(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureXenophobia, OldValue); }
-void UStoneAttributeSet::OnRep_CultureTabooStrictness(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureTabooStrictness, OldValue); }
-void UStoneAttributeSet::OnRep_CultureDietBalance(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureDietBalance, OldValue); }
+void UStoneAttributeSet::OnRep_CultureEmpathy(const FGameplayAttributeData& OldCultureEmpathy) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureEmpathy, OldCultureEmpathy); }
+void UStoneAttributeSet::OnRep_CultureHierarchy(const FGameplayAttributeData& OldCultureHierarchy) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureHierarchy, OldCultureHierarchy); }
+void UStoneAttributeSet::OnRep_CultureViolence(const FGameplayAttributeData& OldCultureViolence) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureViolence, OldCultureViolence); }
+void UStoneAttributeSet::OnRep_CultureSpirituality(const FGameplayAttributeData& OldCultureSpirituality) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureSpirituality, OldCultureSpirituality); }
+void UStoneAttributeSet::OnRep_CultureInnovation(const FGameplayAttributeData& OldCultureInnovation) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureInnovation, OldCultureInnovation); }
+void UStoneAttributeSet::OnRep_CultureCollectivism(const FGameplayAttributeData& OldCultureCollectivism) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureCollectivism, OldCultureCollectivism); }
+void UStoneAttributeSet::OnRep_CultureXenophobia(const FGameplayAttributeData& OldCultureXenophobia) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureXenophobia, OldCultureXenophobia); }
+void UStoneAttributeSet::OnRep_CultureTabooStrictness(const FGameplayAttributeData& OldCultureTabooStrictness) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureTabooStrictness, OldCultureTabooStrictness); }
+void UStoneAttributeSet::OnRep_CultureDietBalance(const FGameplayAttributeData& OldCultureDietBalance) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, CultureDietBalance, OldCultureDietBalance); }
 
 // Knowledge
-void UStoneAttributeSet::OnRep_KnowledgeMedicine(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeMedicine, OldValue); }
-void UStoneAttributeSet::OnRep_KnowledgeHunting(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeHunting, OldValue); }
-void UStoneAttributeSet::OnRep_KnowledgeSurvival(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeSurvival, OldValue); }
-void UStoneAttributeSet::OnRep_KnowledgeCraft(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeCraft, OldValue); }
-void UStoneAttributeSet::OnRep_KnowledgeSocial(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeSocial, OldValue); }
-void UStoneAttributeSet::OnRep_KnowledgeCourage(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeCourage, OldValue); }
-void UStoneAttributeSet::OnRep_KnowledgeSpiritual(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeSpiritual, OldValue); }
+void UStoneAttributeSet::OnRep_KnowledgeMedicine(const FGameplayAttributeData& OldKnowledgeMedicine) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeMedicine, OldKnowledgeMedicine); }
+void UStoneAttributeSet::OnRep_KnowledgeHunting(const FGameplayAttributeData& OldKnowledgeHunting) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeHunting, OldKnowledgeHunting); }
+void UStoneAttributeSet::OnRep_KnowledgeSurvival(const FGameplayAttributeData& OldKnowledgeSurvival) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeSurvival, OldKnowledgeSurvival); }
+void UStoneAttributeSet::OnRep_KnowledgeCraft(const FGameplayAttributeData& OldKnowledgeCraft) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeCraft, OldKnowledgeCraft); }
+void UStoneAttributeSet::OnRep_KnowledgeSocial(const FGameplayAttributeData& OldKnowledgeSocial) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeSocial, OldKnowledgeSocial); }
+void UStoneAttributeSet::OnRep_KnowledgeCourage(const FGameplayAttributeData& OldKnowledgeCourage) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeCourage, OldKnowledgeCourage); }
+void UStoneAttributeSet::OnRep_KnowledgeSpiritual(const FGameplayAttributeData& OldKnowledgeSpiritual) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, KnowledgeSpiritual, OldKnowledgeSpiritual); }
 
 // Worldline Axis
-void UStoneAttributeSet::OnRep_WorldlineMercyRuthless(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineMercyRuthless, OldValue); }
-void UStoneAttributeSet::OnRep_WorldlineTraditionInnovation(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineTraditionInnovation, OldValue); }
-void UStoneAttributeSet::OnRep_WorldlineCollectiveIndividual(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineCollectiveIndividual, OldValue); }
-void UStoneAttributeSet::OnRep_WorldlineSpiritualPractical(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineSpiritualPractical, OldValue); }
-void UStoneAttributeSet::OnRep_WorldlineXenoOpenFear(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineXenoOpenFear, OldValue); }
-void UStoneAttributeSet::OnRep_WorldlineTabooLooseStrict(const FGameplayAttributeData& OldValue) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineTabooLooseStrict, OldValue); }
+void UStoneAttributeSet::OnRep_WorldlineMercyRuthless(const FGameplayAttributeData& OldWorldlineMercyRuthless) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineMercyRuthless, OldWorldlineMercyRuthless); }
+void UStoneAttributeSet::OnRep_WorldlineTraditionInnovation(const FGameplayAttributeData& OldWorldlineTraditionInnovation) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineTraditionInnovation, OldWorldlineTraditionInnovation); }
+void UStoneAttributeSet::OnRep_WorldlineCollectiveIndividual(const FGameplayAttributeData& OldWorldlineCollectiveIndividual) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineCollectiveIndividual, OldWorldlineCollectiveIndividual); }
+void UStoneAttributeSet::OnRep_WorldlineSpiritualPractical(const FGameplayAttributeData& OldWorldlineSpiritualPractical) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineSpiritualPractical, OldWorldlineSpiritualPractical); }
+void UStoneAttributeSet::OnRep_WorldlineXenoOpenFear(const FGameplayAttributeData& OldWorldlineXenoOpenFear) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineXenoOpenFear, OldWorldlineXenoOpenFear); }
+void UStoneAttributeSet::OnRep_WorldlineTabooLooseStrict(const FGameplayAttributeData& OldWorldlineTabooLooseStrict) const { GAMEPLAYATTRIBUTE_REPNOTIFY(UStoneAttributeSet, WorldlineTabooLooseStrict, OldWorldlineTabooLooseStrict); }

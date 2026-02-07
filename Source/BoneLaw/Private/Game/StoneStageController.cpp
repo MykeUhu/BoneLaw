@@ -44,4 +44,3 @@ FStoneStageState AStoneStageController::MakeStageState(const FStoneSnapshot& Sna
 	S.bFireUnlocked = Snap.RunTags.HasTag(GTags.Unlock_Fire);
 	return S;
 }
-

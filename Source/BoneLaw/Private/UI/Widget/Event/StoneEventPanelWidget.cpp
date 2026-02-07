@@ -120,54 +120,133 @@ void UStoneEventPanelWidget::HandleActionProgressChanged(float /*Progress01*/)
 
 void UStoneEventPanelWidget::RefreshFromEvent(const UStoneEventData* Event)
 {
-	CurrentEvent = Event;
-
-	if (!CurrentEvent)
+	// === Authoritative guard against stale/duplicate broadcasts ===
+	// Multiple sources can call RefreshFromEvent (C++ binding + BP binding + BroadcastInitialValues).
+	// If the parameter is nullptr, but the RunSubsystem says an event IS open, ignore this call.
+	// This prevents a late BroadcastInitialValues(nullptr) or BP re-broadcast from wiping a valid event.
+	if (!Event)
 	{
-		// No event open. We still may want to show progress (travel/expedition/action) in this panel.
-		ClearUI();
+		UStoneOverlayWidgetController* OC = GetOverlayController();
+		UStoneRunSubsystem* Run = OC ? OC->GetRunSubsystem() : nullptr;
+		const UStoneEventData* AuthEvent = Run ? Run->GetCurrentEvent() : nullptr;
 
-		bool bHasProgressSource = false;
-
-		if (UStoneOverlayWidgetController* OC = GetOverlayController())
+		if (AuthEvent)
 		{
-			if (UStoneRunSubsystem* Run = OC->GetRunSubsystem())
+			UE_LOG(LogTemp, Warning,
+				TEXT("[StoneUI][EventPanel] RefreshFromEvent(NULL) BLOCKED: RunSubsystem still has open event '%s'. Ignoring stale null broadcast."),
+				*AuthEvent->GetName());
+			return;
+		}
+	}
+
+	// Clear stale local state before applying new event.
+	CurrentEvent = nullptr;
+
+	// Clear existing buttons always (we rebuild if needed)
+	if (VB_Choices)
+	{
+		VB_Choices->ClearChildren();
+	}
+
+	// Hard BindWidget verification: if these fire, the BP widget types don't match the C++ types.
+	ensureMsgf(TB_Title, TEXT("[StoneUI][EventPanel] TB_Title is null! BindWidget type mismatch: BP widget must be UStoneCustomTextBlock, named exactly 'TB_Title', with 'Is Variable' enabled."));
+	ensureMsgf(TB_Body,  TEXT("[StoneUI][EventPanel] TB_Body is null! BindWidget type mismatch: BP widget must be UStoneCustomTextBlock, named exactly 'TB_Body', with 'Is Variable' enabled."));
+
+	UE_LOG(LogTemp, Log, TEXT("[StoneUI][EventPanel] RefreshFromEvent: Event=%s TB_Title=%s TB_Body=%s"),
+		Event ? *Event->GetName() : TEXT("NULL"),
+		TB_Title ? TEXT("OK") : TEXT("NULL"),
+		TB_Body ? TEXT("OK") : TEXT("NULL"));
+
+	// === No event open: show ACTION / TRAVEL status instead of empty panel ===
+	if (!Event)
+	{
+		const bool bActionRunning = ActionSubsystem && ActionSubsystem->IsActionRunning();
+
+		if (bActionRunning)
+		{
+			const FText Title = ActionSubsystem->GetActionTitleText();
+			const FText Phase = ActionSubsystem->GetPhaseText();
+			const float Remaining = ActionSubsystem->GetRemainingSeconds();
+
+			if (TB_Title) TB_Title->SetText(Title);
+
+			if (TB_Body)
 			{
-				bHasProgressSource = (Run->IsTravelActive() || Run->IsOnExpedition());
+				// Example: "On the way… (Outbound)  |  ETA: 12s"
+				const FText EtaText = FText::FromString(FString::Printf(TEXT("ETA: %.0fs"), Remaining));
+				const FText Body = Phase.IsEmpty()
+					? EtaText
+					: FText::Format(FText::FromString(TEXT("{0}  |  {1}")), Phase, EtaText);
+
+				TB_Body->SetText(Body);
 			}
-		}
 
-		if (ActionSubsystem && ActionSubsystem->IsActionRunning())
-		{
-			bHasProgressSource = true;
-		}
+			if (PB_Progress)
+			{
+				PB_Progress->SetPercent(ActionSubsystem->GetActionProgress01());
+				PB_Progress->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			}
 
-		if (bHasProgressSource && PB_Progress)
-		{
-			UE_LOG(LogTemp, Display, TEXT("[StoneUI][EventPanel] RefreshFromEvent: nullptr -> show progress only"));
-			SetVisibility(ESlateVisibility::Visible);
-			RefreshProgressVisual();
+			// Optional BP hook: treat as "shown" so BP can animate in
+			BP_OnEventShown();
 			return;
 		}
 
-		UE_LOG(LogTemp, Display, TEXT("[StoneUI][EventPanel] RefreshFromEvent: nullptr -> clear/hide"));
-		SetVisibility(ESlateVisibility::Collapsed);
+		// Truly idle: no event and no action.
+		if (TB_Title) TB_Title->SetText(FText::GetEmpty());
+		if (TB_Body)  TB_Body->SetText(FText::GetEmpty());
+		if (PB_Progress)
+		{
+			PB_Progress->SetPercent(0.f);
+			PB_Progress->SetVisibility(ESlateVisibility::Collapsed);
+		}
 		BP_OnEventHidden();
 		return;
 	}
 
-	SetVisibility(ESlateVisibility::Visible);
+	// === Normal event view ===
+	CurrentEvent = Event;
 
-	if (TB_Title) TB_Title->SetText(CurrentEvent->Title);
-	if (TB_Body)  TB_Body->SetText(CurrentEvent->Body);
+	UE_LOG(LogTemp, Log, TEXT("[StoneUI][EventPanel] Showing event '%s': TitleLen=%d BodyLen=%d ChoiceCount=%d"),
+		*Event->EventId.ToString(),
+		Event->Title.ToString().Len(),
+		Event->Body.ToString().Len(),
+		Event->Choices.Num());
 
-	UE_LOG(LogTemp, Display, TEXT("[StoneUI][EventPanel] RefreshFromEvent: %s | Choices=%d"),
-		*CurrentEvent->EventId.ToString(),
-		CurrentEvent->Choices.Num());
+	if (TB_Title)
+	{
+		TB_Title->SetText(Event->Title);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneUI][EventPanel] TB_Title is NULL - cannot set title text '%s'. Check WBP_EventPanel BindWidget."), *Event->Title.ToString());
+	}
+
+	if (TB_Body)
+	{
+		TB_Body->SetText(Event->Body);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneUI][EventPanel] TB_Body is NULL - cannot set body text. Check WBP_EventPanel BindWidget."));
+	}
+
+	// Progress: if action is running, keep progress visible while events happen too
+	if (PB_Progress)
+	{
+		const bool bActionRunning = ActionSubsystem && ActionSubsystem->IsActionRunning();
+		PB_Progress->SetVisibility(bActionRunning ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+		if (bActionRunning)
+		{
+			PB_Progress->SetPercent(ActionSubsystem->GetActionProgress01());
+		}
+		else
+		{
+			PB_Progress->SetPercent(0.f);
+		}
+	}
 
 	RebuildChoices();
-	RefreshProgressVisual();
-
 	BP_OnEventShown();
 }
 

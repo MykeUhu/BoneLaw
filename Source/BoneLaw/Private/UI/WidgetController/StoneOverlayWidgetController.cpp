@@ -1,21 +1,42 @@
-﻿#include "UI/WidgetController/StoneOverlayWidgetController.h"
+﻿// Copyright by MykeUhu
+// Following Aura pattern - typed getters inherited from base
+
+#include "UI/WidgetController/StoneOverlayWidgetController.h"
 
 #include "Data/StoneEventData.h"
-
-void UStoneOverlayWidgetController::BindCallbacksToDependencies()
-{
-	if (!RunSubsystem) return;
-
-	RunSubsystem->OnSnapshotChanged.AddDynamic(this, &UStoneOverlayWidgetController::HandleSnapshotChanged);
-	RunSubsystem->OnEventChanged.AddDynamic(this, &UStoneOverlayWidgetController::HandleEventChanged);
-}
+#include "Kismet/GameplayStatics.h"
 
 void UStoneOverlayWidgetController::BroadcastInitialValues()
 {
-	if (!RunSubsystem) return;
+	UStoneRunSubsystem* RunSS = GetRunSubsystem();
+	if (!RunSS) return;
 
-	HandleSnapshotChanged(RunSubsystem->GetSnapshot());
-	HandleEventChanged(RunSubsystem->GetCurrentEvent());
+	HandleSnapshotChanged(RunSS->GetSnapshot());
+	HandleEventChanged(RunSS->GetCurrentEvent());
+}
+
+void UStoneOverlayWidgetController::BindCallbacksToDependencies()
+{
+	UStoneRunSubsystem* RunSS = GetRunSubsystem();
+	if (!RunSS) return;
+
+	RunSS->OnSnapshotChanged.AddDynamic(this, &UStoneOverlayWidgetController::HandleSnapshotChanged);
+	RunSS->OnEventChanged.AddDynamic(this, &UStoneOverlayWidgetController::HandleEventChanged);
+}
+
+UStoneRunSubsystem* UStoneOverlayWidgetController::GetRunSubsystem() const
+{
+	if (CachedRunSubsystem == nullptr)
+	{
+		if (UWorld* World = GEngine->GetWorldFromContextObject(PlayerController, EGetWorldErrorMode::LogAndReturnNull))
+		{
+			if (UGameInstance* GI = World->GetGameInstance())
+			{
+				CachedRunSubsystem = GI->GetSubsystem<UStoneRunSubsystem>();
+			}
+		}
+	}
+	return CachedRunSubsystem;
 }
 
 void UStoneOverlayWidgetController::HandleSnapshotChanged(const FStoneSnapshot& Snapshot)
@@ -31,7 +52,8 @@ void UStoneOverlayWidgetController::HandleEventChanged(const UStoneEventData* Ev
 void UStoneOverlayWidgetController::GetResolvedChoices(TArray<FStoneChoiceResolved>& OutChoices) const
 {
 	OutChoices.Reset();
-	if (!RunSubsystem) return;
+	UStoneRunSubsystem* RunSS = GetRunSubsystem();
+	if (!RunSS) return;
 
-	RunSubsystem->GetResolvedChoices(OutChoices);
+	RunSS->GetResolvedChoices(OutChoices);
 }

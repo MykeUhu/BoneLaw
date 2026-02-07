@@ -142,6 +142,18 @@ public:
 	FGameplayTag Worldline_RaidersAttracted;
 	FGameplayTag Worldline_HealerPath;
 	FGameplayTag Worldline_ToolmakerPath;
+
+	// =========================
+	// Milestone Event Tags (injected events triggered by worldline thresholds)
+	// These tags identify which event to queue when a milestone is reached.
+	// The WorldlineDirector uses these instead of hardcoded event IDs.
+	// =========================
+	FGameplayTag MilestoneEvent_Cannibal_FirstTime;
+	FGameplayTag MilestoneEvent_Tools_Breakthrough;
+	FGameplayTag MilestoneEvent_Healer_Breakthrough;
+	FGameplayTag MilestoneEvent_Raiders_FirstContact;
+	FGameplayTag MilestoneEvent_Spirits_Awakening;
+	FGameplayTag MilestoneEvent_Taboo_Shattered;
 	
 	// =========================
 	// Attributes (GAS)

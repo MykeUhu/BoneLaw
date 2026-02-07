@@ -264,61 +264,59 @@ public:
 	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, IncomingHeal);
 	
 	/*
-	 * OnRep (must match attribute order above)
+	 * OnRep - Aura pattern: each parameter named after its attribute (OldStrength, OldHealth, etc.)
 	 */
 	// Primary
-	UFUNCTION() void OnRep_Strength(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_Intelligence(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_Endurance(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_Willpower(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_Social(const FGameplayAttributeData& OldValue) const;
+	UFUNCTION() void OnRep_Strength(const FGameplayAttributeData& OldStrength) const;
+	UFUNCTION() void OnRep_Intelligence(const FGameplayAttributeData& OldIntelligence) const;
+	UFUNCTION() void OnRep_Endurance(const FGameplayAttributeData& OldEndurance) const;
+	UFUNCTION() void OnRep_Willpower(const FGameplayAttributeData& OldWillpower) const;
+	UFUNCTION() void OnRep_Social(const FGameplayAttributeData& OldSocial) const;
 
 	// Secondary
-	UFUNCTION() void OnRep_CarryCapacity(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_TravelSpeed(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_CraftSpeed(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_GatherEfficiency(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_InjuryResistance(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_HealthRegeneration(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_MaxHealth(const FGameplayAttributeData& OldValue) const;
+	UFUNCTION() void OnRep_CarryCapacity(const FGameplayAttributeData& OldCarryCapacity) const;
+	UFUNCTION() void OnRep_TravelSpeed(const FGameplayAttributeData& OldTravelSpeed) const;
+	UFUNCTION() void OnRep_CraftSpeed(const FGameplayAttributeData& OldCraftSpeed) const;
+	UFUNCTION() void OnRep_GatherEfficiency(const FGameplayAttributeData& OldGatherEfficiency) const;
+	UFUNCTION() void OnRep_InjuryResistance(const FGameplayAttributeData& OldInjuryResistance) const;
+	UFUNCTION() void OnRep_HealthRegeneration(const FGameplayAttributeData& OldHealthRegeneration) const;
+	UFUNCTION() void OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth) const;
 
 	// Vital
-	UFUNCTION() void OnRep_Food(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_Water(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_Warmth(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_Morale(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_Trust(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_Health(const FGameplayAttributeData& OldValue) const;
-
-
+	UFUNCTION() void OnRep_Health(const FGameplayAttributeData& OldHealth) const;
+	UFUNCTION() void OnRep_Food(const FGameplayAttributeData& OldFood) const;
+	UFUNCTION() void OnRep_Water(const FGameplayAttributeData& OldWater) const;
+	UFUNCTION() void OnRep_Warmth(const FGameplayAttributeData& OldWarmth) const;
+	UFUNCTION() void OnRep_Morale(const FGameplayAttributeData& OldMorale) const;
+	UFUNCTION() void OnRep_Trust(const FGameplayAttributeData& OldTrust) const;
 
 	// Culture
-	UFUNCTION() void OnRep_CultureEmpathy(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_CultureHierarchy(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_CultureViolence(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_CultureSpirituality(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_CultureInnovation(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_CultureCollectivism(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_CultureXenophobia(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_CultureTabooStrictness(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_CultureDietBalance(const FGameplayAttributeData& OldValue) const;
+	UFUNCTION() void OnRep_CultureEmpathy(const FGameplayAttributeData& OldCultureEmpathy) const;
+	UFUNCTION() void OnRep_CultureHierarchy(const FGameplayAttributeData& OldCultureHierarchy) const;
+	UFUNCTION() void OnRep_CultureViolence(const FGameplayAttributeData& OldCultureViolence) const;
+	UFUNCTION() void OnRep_CultureSpirituality(const FGameplayAttributeData& OldCultureSpirituality) const;
+	UFUNCTION() void OnRep_CultureInnovation(const FGameplayAttributeData& OldCultureInnovation) const;
+	UFUNCTION() void OnRep_CultureCollectivism(const FGameplayAttributeData& OldCultureCollectivism) const;
+	UFUNCTION() void OnRep_CultureXenophobia(const FGameplayAttributeData& OldCultureXenophobia) const;
+	UFUNCTION() void OnRep_CultureTabooStrictness(const FGameplayAttributeData& OldCultureTabooStrictness) const;
+	UFUNCTION() void OnRep_CultureDietBalance(const FGameplayAttributeData& OldCultureDietBalance) const;
 
 	// Knowledge
-	UFUNCTION() void OnRep_KnowledgeMedicine(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_KnowledgeHunting(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_KnowledgeSurvival(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_KnowledgeCraft(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_KnowledgeSocial(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_KnowledgeCourage(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_KnowledgeSpiritual(const FGameplayAttributeData& OldValue) const;
+	UFUNCTION() void OnRep_KnowledgeMedicine(const FGameplayAttributeData& OldKnowledgeMedicine) const;
+	UFUNCTION() void OnRep_KnowledgeHunting(const FGameplayAttributeData& OldKnowledgeHunting) const;
+	UFUNCTION() void OnRep_KnowledgeSurvival(const FGameplayAttributeData& OldKnowledgeSurvival) const;
+	UFUNCTION() void OnRep_KnowledgeCraft(const FGameplayAttributeData& OldKnowledgeCraft) const;
+	UFUNCTION() void OnRep_KnowledgeSocial(const FGameplayAttributeData& OldKnowledgeSocial) const;
+	UFUNCTION() void OnRep_KnowledgeCourage(const FGameplayAttributeData& OldKnowledgeCourage) const;
+	UFUNCTION() void OnRep_KnowledgeSpiritual(const FGameplayAttributeData& OldKnowledgeSpiritual) const;
 
 	// Worldline Axis
-	UFUNCTION() void OnRep_WorldlineMercyRuthless(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_WorldlineTraditionInnovation(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_WorldlineCollectiveIndividual(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_WorldlineSpiritualPractical(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_WorldlineXenoOpenFear(const FGameplayAttributeData& OldValue) const;
-	UFUNCTION() void OnRep_WorldlineTabooLooseStrict(const FGameplayAttributeData& OldValue) const;
+	UFUNCTION() void OnRep_WorldlineMercyRuthless(const FGameplayAttributeData& OldWorldlineMercyRuthless) const;
+	UFUNCTION() void OnRep_WorldlineTraditionInnovation(const FGameplayAttributeData& OldWorldlineTraditionInnovation) const;
+	UFUNCTION() void OnRep_WorldlineCollectiveIndividual(const FGameplayAttributeData& OldWorldlineCollectiveIndividual) const;
+	UFUNCTION() void OnRep_WorldlineSpiritualPractical(const FGameplayAttributeData& OldWorldlineSpiritualPractical) const;
+	UFUNCTION() void OnRep_WorldlineXenoOpenFear(const FGameplayAttributeData& OldWorldlineXenoOpenFear) const;
+	UFUNCTION() void OnRep_WorldlineTabooLooseStrict(const FGameplayAttributeData& OldWorldlineTabooLooseStrict) const;
 	
 private:
 	void SetEffectProperties(const FGameplayEffectModCallbackData& Data, FEffectProperties& Props) const;
