@@ -1,12 +1,14 @@
 #include "Runtime/StoneRunSubsystem.h"
 
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/StoneAttributeSet.h"
 #include "Core/StoneGameplayTags.h"
+#include "Core/StonePlayerState.h"
 #include "Data/StoneEventData.h"
 #include "Data/StoneEventPackData.h"
 #include "Game/StoneOutcomeExecutor.h"
-#include "Game/StoneRunAnchor.h"
 #include "Game/StoneScheduler.h"
+#include "Kismet/GameplayStatics.h"
 #include "Game/StoneWorldlineDirector.h"
 #include "Game/StoneWorldlineWeightPolicy.h"
 #include "Game/Events/StoneEventResolver.h"
@@ -40,37 +42,6 @@ namespace
 			ActionSS->StopCurrentAction(/*bForceReturnHomeEvent*/ false);
 		}
 	}
-}
-
-void UStoneRunSubsystem::EnsureAttributeRegistryLoaded()
-{
-	if (AttributeRegistry) return;
-
-	const TSoftObjectPtr<UStoneAttributeRegistry> Soft = ResolveRegistrySoft();
-	if (Soft.IsNull())
-	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] AttributeRegistry not set. Set it in Project Settings > Stone Content."));
-		return;
-	}
-
-	AttributeRegistry = Soft.LoadSynchronous();
-	if (!AttributeRegistry)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] Failed to load AttributeRegistry asset from settings."));
-		return;
-	}
-
-	AttributeRegistry->BuildCaches();
-}
-
-TSoftObjectPtr<UStoneAttributeRegistry> UStoneRunSubsystem::ResolveRegistrySoft() const
-{
-	const UStoneContentSettings* Settings = GetDefault<UStoneContentSettings>();
-	if (Settings && !Settings->AttributeRegistry.IsNull())
-	{
-		return Settings->AttributeRegistry;
-	}
-	return nullptr;
 }
 
 void UStoneRunSubsystem::SetSimulationSpeed(float NewSpeed)
@@ -244,8 +215,11 @@ if (bTravelActive)
 }
 
 	// Ensure core systems exist.
-	EnsureAnchor();
-	EnsureAttributeRegistryLoaded();
+	if (!EnsurePlayerStateCache())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] StartExploreExpedition failed: No PlayerState."));
+		return;
+	}
 	EnsureEventLibrary(true);
 	EnsurePackLibrary(true);
 
@@ -327,31 +301,32 @@ void UStoneRunSubsystem::TickExpedition()
 }
 
 
-float UStoneRunSubsystem::GetAttr(EStoneAttrId Id) const
-{
-	if (!AttributeRegistry) return 0.f;
-	if (UAbilitySystemComponent* ASC = GetASC())
-	{
-		FGameplayAttribute A;
-		if (AttributeRegistry->TryGet(Id, A))
-		{
-			return ASC->GetNumericAttribute(A);
-		}
-	}
-	return 0.f;
-}
 
 void UStoneRunSubsystem::SetAttrByStableName(const FName& StableName, float Value) const
 {
-	if (!AttributeRegistry) return;
-	if (UAbilitySystemComponent* ASC = GetASC())
+	UAbilitySystemComponent* ASC = GetASC();
+	if (!ASC) return;
+
+	// Use TagsToAttributes map from AttributeSet for StableName lookup (save/load compatibility)
+	const UStoneAttributeSet* AttrSet = ASC->GetSet<UStoneAttributeSet>();
+	if (!AttrSet) return;
+
+	const FStoneGameplayTags& Tags = FStoneGameplayTags::Get();
+	for (const auto& KV : AttrSet->TagsToAttributes)
 	{
-		FGameplayAttribute A;
-		if (AttributeRegistry->TryGetByStableName(StableName, A))
+		// Compare StableName against the tag's leaf name
+		if (KV.Key.GetTagName().ToString().EndsWith(StableName.ToString()))
 		{
-			ASC->SetNumericAttributeBase(A, Value);
+			const FGameplayAttribute Attr = KV.Value();
+			if (Attr.IsValid())
+			{
+				ASC->SetNumericAttributeBase(Attr, Value);
+			}
+			return;
 		}
 	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] SetAttrByStableName: no attribute found for '%s'"), *StableName.ToString());
 }
 
 void UStoneRunSubsystem::GetResolvedChoices(TArray<FStoneChoiceResolved>& OutResolved) const
@@ -375,11 +350,9 @@ void UStoneRunSubsystem::Deinitialize()
 	TemporaryPackIds.Reset();
 	PendingEventIds.Reset();
 
-	if (Anchor.IsValid())
-	{
-		Anchor->Destroy();
-		Anchor.Reset();
-	}
+	// Clear the cached PlayerState reference (PlayerState lifetime is managed by UE, not us)
+	CachedPlayerState.Reset();
+	
 	Super::Deinitialize();
 }
 
@@ -418,47 +391,68 @@ UStoneEventData* UStoneRunSubsystem::GetEventFast(FName EventId) const
 	return EventLibrary ? EventLibrary->GetEvent(EventId) : nullptr;
 }
 
-void UStoneRunSubsystem::EnsureAnchor()
+bool UStoneRunSubsystem::EnsurePlayerStateCache()
 {
-	if (Anchor.IsValid()) return;
+	// Already cached and valid?
+	if (CachedPlayerState.IsValid())
+	{
+		return true;
+	}
 
 	UWorld* World = GetWorld();
-	check(World);
+	if (!World)
+	{
+		return false;
+	}
 
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	Params.Name = TEXT("StoneRunAnchor");
+	// Get local player controller
+	APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] EnsurePlayerStateCache: No PlayerController found."));
+		return false;
+	}
 
-	AStoneRunAnchor* A = World->SpawnActor<AStoneRunAnchor>(AStoneRunAnchor::StaticClass(), FTransform::Identity, Params);
-	check(A);
+	AStonePlayerState* PS = PC->GetPlayerState<AStonePlayerState>();
+	if (!PS)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] EnsurePlayerStateCache: PlayerState is not AStonePlayerState."));
+		return false;
+	}
 
-	EnsureAttributeRegistryLoaded();
+	CachedPlayerState = PS;
+	return true;
+}
 
-	A->InitializeGAS();
-	Anchor = A;
+AStonePlayerState* UStoneRunSubsystem::GetPlayerState() const
+{
+	return CachedPlayerState.Get();
 }
 
 UAbilitySystemComponent* UStoneRunSubsystem::GetASC() const
 {
-	return Anchor.IsValid() ? Anchor->GetAbilitySystemComponent() : nullptr;
+	if (CachedPlayerState.IsValid())
+	{
+		return CachedPlayerState->GetAbilitySystemComponent();
+	}
+	return nullptr;
 }
 
 void UStoneRunSubsystem::EnsureWorldlineDirector()
 {
 	if (Worldline) return;
 
-	EnsureAnchor();
-	EnsureAttributeRegistryLoaded();
+	EnsurePlayerStateCache();
 
 	UAbilitySystemComponent* ASC = GetASC();
-	if (!ASC || !AttributeRegistry)
+	if (!ASC)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] EnsureWorldlineDirector failed (ASC or AttributeRegistry missing)."));
+		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] EnsureWorldlineDirector failed (ASC missing)."));
 		return;
 	}
 
 	Worldline = NewObject<UStoneWorldlineDirector>(this);
-	Worldline->Initialize(ASC, AttributeRegistry);
+	Worldline->Initialize(ASC);
 }
 
 void UStoneRunSubsystem::UpdateWorldlineAndUnlocks()
@@ -637,10 +631,13 @@ void UStoneRunSubsystem::TryAutoUnlockPacks()
 
 void UStoneRunSubsystem::StartNewRun(const FStoneRunConfig& Config)
 {
-	UE_LOG(LogTemp, Warning, TEXT("StartNewRun called"));
+	UE_LOG(LogTemp, Log, TEXT("[StoneRunSubsystem] StartNewRun called"));
 
-	EnsureAnchor();
-	EnsureAttributeRegistryLoaded();
+	if (!EnsurePlayerStateCache())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] StartNewRun failed: Could not find PlayerState with GAS."));
+		return;
+	}
 
 	Scheduler = NewObject<UStoneScheduler>(this);
 	Resolver = NewObject<UStoneEventResolver>(this);
@@ -686,13 +683,16 @@ void UStoneRunSubsystem::LoadRun(const UStoneSaveGame* Save)
 {
 	if (!Save) return;
 
-	EnsureAnchor();
+	if (!EnsurePlayerStateCache())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] LoadRun failed: Could not find PlayerState with GAS."));
+		return;
+	}
 
 	Scheduler = NewObject<UStoneScheduler>(this);
 	Resolver = NewObject<UStoneEventResolver>(this);
 	OutcomeExecutor = NewObject<UStoneOutcomeExecutor>(this);
 
-	EnsureAttributeRegistryLoaded();
 	EnsurePackLibrary(true);
 	EnsureEventLibrary(true);
 
@@ -751,14 +751,25 @@ UStoneSaveGame* UStoneRunSubsystem::CreateSave() const
 	// Temporary packs must never be saved.
 	// Pending ambient events are also not persisted for now (demo rule).
 
-	if (AttributeRegistry && GetASC())
+	// Save all attributes via TagsToAttributes (Aura pattern - no Registry needed)
+	if (UAbilitySystemComponent* ASC = GetASC())
 	{
-		for (const FStoneAttrBinding& B : AttributeRegistry->Bindings)
+		if (const UStoneAttributeSet* AttrSet = ASC->GetSet<UStoneAttributeSet>())
 		{
-			if (!B.StableName.IsNone() && B.Attribute.IsValid())
+			for (const auto& KV : AttrSet->TagsToAttributes)
 			{
-				const float V = GetASC()->GetNumericAttribute(B.Attribute);
-				Save->AttributeValues.Add(B.StableName, V);
+				const FGameplayAttribute Attr = KV.Value();
+				if (Attr.IsValid())
+				{
+					// Use the tag's leaf name as StableName for save compatibility
+					const FString TagStr = KV.Key.GetTagName().ToString();
+					FString LeafName;
+					TagStr.Split(TEXT("."), nullptr, &LeafName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+					if (!LeafName.IsEmpty())
+					{
+						Save->AttributeValues.Add(FName(*LeafName), ASC->GetNumericAttribute(Attr));
+					}
+				}
 			}
 		}
 	}
@@ -822,6 +833,21 @@ void UStoneRunSubsystem::PickNextEvent(bool bAllowScheduledOverride, bool bAllow
 			OnEventChanged.Broadcast(CurrentEvent);
 			return;
 		}
+	}
+
+	// 1.5) Pending queued events (from actions/travel/ambient) must be shown before random picks.
+	// This ensures Arrival events (queued while Outbound was open) are presented deterministically.
+	if (!CurrentEvent && PendingEventIds.Num() > 0)
+	{
+		const FName NextId = PendingEventIds[0];
+		PendingEventIds.RemoveAt(0);
+
+		CurrentEvent = LoadEventById(NextId);
+		OnEventChanged.Broadcast(CurrentEvent);
+
+		UE_LOG(LogTemp, Log, TEXT("[StoneRunSubsystem] PickNextEvent: opened pending event '%s' (%d remaining)"),
+			*NextId.ToString(), PendingEventIds.Num());
+		return;
 	}
 
 	// 2) idle mode (cave) -> do NOT pick random
@@ -905,21 +931,55 @@ void UStoneRunSubsystem::PickNextEvent(bool bAllowScheduledOverride, bool bAllow
 	OnEventChanged.Broadcast(CurrentEvent);
 }
 
-bool UStoneRunSubsystem::UpdateNightStateFromTime01(float NewTime01, bool& bOutTransitionedToNight)
+// ==========================================================================
+// TIME SYSTEM (UDS Integration)
+// All time is controlled by Ultra Dynamic Sky via Blueprint callbacks.
+// C++ only tracks counters - no internal time calculation.
+// ==========================================================================
+
+void UStoneRunSubsystem::OnSunrise()
 {
-	bOutTransitionedToNight = false;
+	// Called by Blueprint when UDS fires OnSunrise
+	Time.DayIndex += 1;
+	Time.bIsNight = false;
+	
+	ApplyDayNightTags(false);
+	
+	UE_LOG(LogTemp, Log, TEXT("[StoneRunSubsystem] OnSunrise: Day %d started"), Time.DayIndex);
+	
+	RebuildSnapshot();
+	BroadcastSnapshot();
+}
 
-	// Example thresholds: Day [0.25..0.75), Night otherwise
-	const bool bWasNight = Time.bIsNight;
-	const bool bNowNight = (NewTime01 < 0.25f) || (NewTime01 >= 0.75f);
-
-	if (bNowNight != bWasNight)
+void UStoneRunSubsystem::OnSunset()
+{
+	// Called by Blueprint when UDS fires OnSunset
+	Time.TotalNightsPassed += 1;
+	Time.bIsNight = true;
+	
+	ApplyDayNightTags(true);
+	
+	// Notify scheduler about night transition
+	if (Scheduler)
 	{
-		bOutTransitionedToNight = bNowNight;
-		Time.bIsNight = bNowNight;
-		return true;
+		Scheduler->NotifyChoiceAdvanced(Time, 0, true, true);
 	}
-	return false;
+	
+	UE_LOG(LogTemp, Log, TEXT("[StoneRunSubsystem] OnSunset: Night %d started"), Time.TotalNightsPassed);
+	
+	RebuildSnapshot();
+	BroadcastSnapshot();
+}
+
+void UStoneRunSubsystem::OnHourChanged(int32 NewHour)
+{
+	// Called by Blueprint when UDS fires OnHourChanged
+	Time.CurrentHour = NewHour;
+	
+	// Roll for ambient event with configurable chance (default 5%)
+	// This creates rare time-based events without event spam
+	constexpr float AmbientEventChance = 0.05f;
+	TryRollAmbientEvent(AmbientEventChance, /*bAutoPresent*/ false);
 }
 
 void UStoneRunSubsystem::ApplyDayNightTags(bool bNowNight)
@@ -932,46 +992,15 @@ void UStoneRunSubsystem::ApplyDayNightTags(bool bNowNight)
 	RunTags.AddTag(bNowNight ? Tags.State_Night : Tags.State_Day);
 }
 
-void UStoneRunSubsystem::AdvanceTimeByDecision()
+void UStoneRunSubsystem::IncrementChoiceCounter()
 {
-	// Studio rule: decisions advance time in meaningful chunks.
-	// 0.06 ~= ~1.5h of a 24h day; tune in config later.
-	const float Step = 0.06f;
-
-	const float NewT = FMath::Fmod(Time.TimeOfDay01 + Step, 1.f);
-
-// Day/Night may be controlled by an external authority (Ultra Dynamic Skies).
-// If enabled, we do NOT infer night from TimeOfDay01 thresholds.
-bool bTransitionedToNight = false;
-const bool bTransition = bExternalDayNightAuthorityEnabled ? false : UpdateNightStateFromTime01(NewT, bTransitionedToNight);
-
-	// Handle day counter advance when crossing wrap-around
-	const bool bWrapped = (Time.TimeOfDay01 + Step) >= 1.f;
-	Time.TimeOfDay01 = NewT;
-
-	if (bWrapped)
-	{
-		Time.DayIndex += 1;
-	}
-
-	// Update tags for day/night if transition happened
-	if (bTransition)
-	{
-		ApplyDayNightTags(Time.bIsNight);
-	}
-
-	if (bTransition && Time.bIsNight)
-	{
-		Time.TotalNightsPassed += 1;
-	}
-
-	// Scheduler book-keeping
+	Time.TotalChoices += 1;
+	
+	// Notify scheduler about choice advancement
 	if (Scheduler)
 	{
-		Scheduler->NotifyChoiceAdvanced(Time, 1, bTransition, Time.bIsNight);
+		Scheduler->NotifyChoiceAdvanced(Time, 1, false, Time.bIsNight);
 	}
-
-	Time.TotalChoices += 1;
 }
 
 void UStoneRunSubsystem::ExecuteChoiceOutcomes(const FStoneChoiceData& Choice, bool bSoftFailPath)
@@ -1014,19 +1043,74 @@ void UStoneRunSubsystem::ApplyChoice(int32 ChoiceIndex)
 
 	ExecuteChoiceOutcomes(Choice, bSoftFail);
 
-	AdvanceTimeByDecision();
+	// Track choice count (time is managed by UDS, not advanced internally)
+	IncrementChoiceCounter();
 
-	// EXPEDITION RULE:
-	// During real-time expeditions we do NOT chain into the next event immediately.
-	// Instead we return to "travel" (CurrentEvent=null) and the expedition timer will
-	// present the next event after a delay (respecting SimulationSpeed + pause).
+	// REALTIME ACTION RULE:
+	// During ANY real-time action (Expedition, Travel via ActionSubsystem, or Travel via RunSubsystem)
+	// we do NOT chain into the next random event immediately.
+	// Instead we:
+	//   1) Open the next pending event if one was queued (e.g. Arrival queued while Outbound was open)
+	//   2) If no pending: clear event and return to "travel running, no event" state
+	//
+	// We check BOTH the tag-based state AND the ActionSubsystem directly,
+	// because ExecuteChoiceOutcomes may strip tags before we get here.
 	const FStoneGameplayTags& T = FStoneGameplayTags::Get();
-	if (RunTags.HasTag(T.State_OnExpedition))
+	const bool bTagGate = RunTags.HasTag(T.State_OnAction) || RunTags.HasTag(T.State_OnExpedition);
+
+	// Also check ActionSubsystem directly (it owns its own bActionRunning flag
+	// and is authoritative about whether an action is still in progress).
+	// UStoneActionSubsystem is a UWorldSubsystem, so we get it from UWorld.
+	bool bActionSubsystemRunning = false;
+	if (UWorld* W = GetWorld())
 	{
-		ReturnToRealtimeTravelState();
-		// Ensure we have a countdown running; if the player spam-clicks choices,
-		// we still want spacing between events.
-		QueueNextRealtimeEvent(false);
+		if (UStoneActionSubsystem* ActionSS = W->GetSubsystem<UStoneActionSubsystem>())
+		{
+			bActionSubsystemRunning = ActionSS->IsActionRunning();
+		}
+	}
+
+	const bool bRealtimeActionGate = bTagGate || bTravelActive || bExpeditionActive || bActionSubsystemRunning;
+
+	UE_LOG(LogTemp, Log,
+		TEXT("[StoneRunSubsystem] ApplyChoice: Gate check -> bRealtimeActionGate=%s (TagGate=%s Travel=%s Expedition=%s ActionSS=%s) PendingEvents=%d"),
+		bRealtimeActionGate ? TEXT("YES") : TEXT("NO"),
+		bTagGate ? TEXT("Y") : TEXT("N"),
+		bTravelActive ? TEXT("Y") : TEXT("N"),
+		bExpeditionActive ? TEXT("Y") : TEXT("N"),
+		bActionSubsystemRunning ? TEXT("Y") : TEXT("N"),
+		PendingEventIds.Num());
+
+	if (bRealtimeActionGate)
+	{
+		// Close current event
+		CurrentEvent = nullptr;
+
+		// Deterministic: show next pending immediately if any (e.g. Arrival that was queued while Outbound was open)
+		if (PendingEventIds.Num() > 0)
+		{
+			const FName NextId = PendingEventIds[0];
+			PendingEventIds.RemoveAt(0);
+
+			CurrentEvent = LoadEventById(NextId);
+			OnEventChanged.Broadcast(CurrentEvent);
+
+			UE_LOG(LogTemp, Log, TEXT("[StoneRunSubsystem] ApplyChoice: opened pending event '%s' (%d remaining)"),
+				*NextId.ToString(), PendingEventIds.Num());
+
+			RebuildSnapshot();
+			BroadcastSnapshot();
+			return;
+		}
+
+		// No pending -> stay in realtime travel state (action subsystem continues ticking)
+		OnEventChanged.Broadcast(nullptr);
+
+		// For expedition legacy path: ensure countdown is running
+		if (bExpeditionActive)
+		{
+			QueueNextRealtimeEvent(false);
+		}
 
 		RebuildSnapshot();
 		BroadcastSnapshot();
@@ -1048,12 +1132,15 @@ void UStoneRunSubsystem::RebuildSnapshot()
 	Snapshot.FocusTag = FocusTag;
 	Snapshot.CurrentEventId = CurrentEvent ? CurrentEvent->EventId : NAME_None;
 
-	Snapshot.Food = GetAttr(EStoneAttrId::Food);
-	Snapshot.Water = GetAttr(EStoneAttrId::Water);
-	Snapshot.Health = GetAttr(EStoneAttrId::Health);
-	Snapshot.Morale = GetAttr(EStoneAttrId::Morale);
-	Snapshot.Warmth = GetAttr(EStoneAttrId::Warmth);
-	Snapshot.Trust = GetAttr(EStoneAttrId::Trust);
+	if (UAbilitySystemComponent* ASC = GetASC())
+	{
+		Snapshot.Food   = ASC->GetNumericAttribute(UStoneAttributeSet::GetFoodAttribute());
+		Snapshot.Water  = ASC->GetNumericAttribute(UStoneAttributeSet::GetWaterAttribute());
+		Snapshot.Health = ASC->GetNumericAttribute(UStoneAttributeSet::GetHealthAttribute());
+		Snapshot.Morale = ASC->GetNumericAttribute(UStoneAttributeSet::GetMoraleAttribute());
+		Snapshot.Warmth = ASC->GetNumericAttribute(UStoneAttributeSet::GetWarmthAttribute());
+		Snapshot.Trust  = ASC->GetNumericAttribute(UStoneAttributeSet::GetTrustAttribute());
+	}
 }
 
 void UStoneRunSubsystem::BroadcastSnapshot()
@@ -1165,37 +1252,8 @@ void UStoneRunSubsystem::BuildInitialEventPool(const FStoneRunConfig& Config)
 
 
 
-void UStoneRunSubsystem::SetExternalDayNightAuthorityEnabled(bool bEnabled)
-{
-	bExternalDayNightAuthorityEnabled = bEnabled;
-}
-
-void UStoneRunSubsystem::SetIsNightFromExternal(bool bIsNight)
-{
-	// External authority sets the canonical day/night tags.
-	const bool bWasNight = Time.bIsNight;
-	if (bWasNight == bIsNight)
-	{
-		return;
-	}
-
-	Time.bIsNight = bIsNight;
-	ApplyDayNightTags(bIsNight);
-
-	// Scheduler: arm AtDayStart / AtNightStart triggers on transition.
-	if (Scheduler)
-	{
-		Scheduler->NotifyChoiceAdvanced(Time, /*ChoicesAdvanced*/0, /*bDayNightTransition*/true, /*bIsNight*/bIsNight);
-	}
-
-	if (bIsNight)
-	{
-		Time.TotalNightsPassed += 1;
-	}
-
-	RebuildSnapshot();
-	BroadcastSnapshot();
-}
+// Old SetExternalDayNightAuthorityEnabled and SetIsNightFromExternal removed.
+// Time is now fully controlled by UDS via OnSunrise(), OnSunset(), OnHourChanged().
 
 void UStoneRunSubsystem::ActivatePackTemporary(FName PackId)
 {
@@ -1354,17 +1412,46 @@ bool UStoneRunSubsystem::HasOpenEvent() const
 
 void UStoneRunSubsystem::AddStateTags(const FGameplayTagContainer& TagsToAdd)
 {
-	if (!TagsToAdd.IsEmpty())
+	if (TagsToAdd.IsEmpty())
 	{
-		RunTags.AppendTags(TagsToAdd);
+		return;
+	}
+
+	RunTags.AppendTags(TagsToAdd);
+
+	// Mirror run-state tags onto the player's ASC as loose gameplay tags.
+	// Multiplayer-safe: only the server should mutate authoritative loose tag counts.
+	if (UAbilitySystemComponent* ASC = GetASC())
+	{
+		if (AActor* OwnerActor = ASC->GetOwner())
+		{
+			if (OwnerActor->HasAuthority())
+			{
+				ASC->AddLooseGameplayTags(TagsToAdd);
+			}
+		}
 	}
 }
 
 void UStoneRunSubsystem::RemoveStateTags(const FGameplayTagContainer& TagsToRemove)
 {
-	if (!TagsToRemove.IsEmpty())
+	if (TagsToRemove.IsEmpty())
 	{
-		RunTags.RemoveTags(TagsToRemove);
+		return;
+	}
+
+	RunTags.RemoveTags(TagsToRemove);
+
+	// Multiplayer-safe: only the server should mutate authoritative loose tag counts.
+	if (UAbilitySystemComponent* ASC = GetASC())
+	{
+		if (AActor* OwnerActor = ASC->GetOwner())
+		{
+			if (OwnerActor->HasAuthority())
+			{
+				ASC->RemoveLooseGameplayTags(TagsToRemove);
+			}
+		}
 	}
 }
 
@@ -1464,8 +1551,11 @@ void UStoneRunSubsystem::StartTravelAction(FName InTravelPackId, float TotalSeco
 		StopTravelAction(/*bForceReturnHomeEvent*/ false);
 	}
 
-	EnsureAnchor();
-	EnsureAttributeRegistryLoaded();
+	if (!EnsurePlayerStateCache())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] StartTravelAction failed: No PlayerState."));
+		return;
+	}
 	EnsureEventLibrary(true);
 	EnsurePackLibrary(true);
 

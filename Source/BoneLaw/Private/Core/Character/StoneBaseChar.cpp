@@ -61,5 +61,3 @@ void AStoneBaseChar::AddCharacterAbilities()
 	StoneASC->AddCharacterAbilities(StartupAbilities);
 	StoneASC->AddCharacterPassiveAbilities(StartupPassiveAbilities);
 }
-
-

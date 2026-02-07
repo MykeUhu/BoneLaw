@@ -6,7 +6,7 @@
 #include "Data/StoneTypes.h"
 #include "Game/StoneRunTraceBuffer.h"
 #include "Game/Events/StoneEventResolver.h"
-#include "GAS/Attribute/StoneAttributeRegistry.h"
+
 #include "Core/StoneContentSettings.h"
 #include "Data/StoneEventPackData.h"
 #include "TimerManager.h"
@@ -18,12 +18,12 @@ struct FStoneChoiceData;
 class UStoneWorldlineWeightPolicy;
 class UStoneWorldlineDirector;
 class UStoneEventLibrary;
-class AStoneRunAnchor;
 class UStoneEventData;
 class UStoneScheduler;
 class UStoneEventResolver;
 class UStoneOutcomeExecutor;
 class UStoneSaveGame;
+class AStonePlayerState;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneSnapshotChanged, const FStoneSnapshot&, Snapshot);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneEventChanged, const UStoneEventData*, Event);
@@ -39,7 +39,7 @@ struct FStoneRunConfig
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FGameplayTagContainer StartingTags;
 
-	// StableName -> Value (uses AttributeRegistry)
+	// StableName -> Value (uses TagsToAttributes from UStoneAttributeSet)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<FName, float> StartingAttributeValues;
 
@@ -107,12 +107,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Stone|Run")
 	FStoneEventChanged OnEventChanged;
 
-	UPROPERTY()
-	TObjectPtr<UStoneAttributeRegistry> AttributeRegistry;
 
-	void EnsureAttributeRegistryLoaded();
-
-	TSoftObjectPtr<UStoneAttributeRegistry> ResolveRegistrySoft() const;
 	
 	// === Simulation Speed (for real-time actions like expeditions) ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Sim")
@@ -179,20 +174,43 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Stone|Ambient")
 	bool OpenNextPendingEvent();
 
-	// === External day/night authority (Ultra Dynamic Skies) ===
-	// If enabled, Stone will NOT infer day/night from TimeOfDay01 thresholds.
-	// Instead, BP should call SetIsNightFromExternal whenever UDS signals sunrise/sunset.
-	UFUNCTION(BlueprintCallable, Category="Stone|Time")
-	void SetExternalDayNightAuthorityEnabled(bool bEnabled);
+	// ==========================================================================
+	// TIME SYSTEM (UDS Integration)
+	// ==========================================================================
+	// All time data comes from Ultra Dynamic Sky (UDS) via Blueprint.
+	// C++ does NOT calculate time internally - only tracks counters.
+	//
+	// Blueprint (GameMode or PlayerController) binds to UDS events:
+	//   - UDS OnSunrise  -> Call OnSunrise()
+	//   - UDS OnSunset   -> Call OnSunset()  
+	//   - UDS OnHourChanged -> Call OnHourChanged(Hour)
+	// ==========================================================================
 
+	/** Called by Blueprint when UDS fires OnSunrise. Increments DayIndex, sets bIsNight=false. */
 	UFUNCTION(BlueprintCallable, Category="Stone|Time")
-	void SetIsNightFromExternal(bool bIsNight);
+	void OnSunrise();
 
+	/** Called by Blueprint when UDS fires OnSunset. Increments TotalNightsPassed, sets bIsNight=true. */
+	UFUNCTION(BlueprintCallable, Category="Stone|Time")
+	void OnSunset();
+
+	/** Called by Blueprint when UDS fires OnHourChanged. Updates CurrentHour and may roll ambient event. */
+	UFUNCTION(BlueprintCallable, Category="Stone|Time")
+	void OnHourChanged(int32 NewHour);
+
+	/** Returns current time state (read-only). */
 	UFUNCTION(BlueprintPure, Category="Stone|Time")
-	bool IsExternalDayNightAuthorityEnabled() const { return bExternalDayNightAuthorityEnabled; }
+	const FStoneTimeState& GetTimeState() const { return Time; }
 
-	// Helper
-	float GetAttr(EStoneAttrId Id) const;
+	/** Returns true if currently night. */
+	UFUNCTION(BlueprintPure, Category="Stone|Time")
+	bool IsNight() const { return Time.bIsNight; }
+
+	/** Returns current day index (starts at 1). */
+	UFUNCTION(BlueprintPure, Category="Stone|Time")
+	int32 GetCurrentDay() const { return Time.DayIndex; }
+
+	// Helper (uses TagsToAttributes from UStoneAttributeSet for StableName lookup)
 	void SetAttrByStableName(const FName& StableName, float Value) const;
 
 	UFUNCTION(BlueprintCallable, Category="Stone|Run")
@@ -235,9 +253,18 @@ protected:
 	virtual void Deinitialize() override;
 
 private:
-	// === Core parts ===
+	// === GAS Access via PlayerState ===
+	// The PlayerState owns the AbilitySystemComponent. We cache a weak reference
+	// and refresh it when needed. This ensures GAS is properly owned by PlayerState
+	// per Unreal Engine best practices for multiplayer.
 	UPROPERTY()
-	TWeakObjectPtr<AStoneRunAnchor> Anchor;
+	TWeakObjectPtr<AStonePlayerState> CachedPlayerState;
+
+	/** Attempts to find and cache the local player's PlayerState. Returns true if valid. */
+	bool EnsurePlayerStateCache();
+
+	/** Returns the cached PlayerState or nullptr if not available. */
+	AStonePlayerState* GetPlayerState() const;
 
 	UPROPERTY()
 	TObjectPtr<UStoneScheduler> Scheduler;
@@ -287,7 +314,6 @@ private:
 	FRandomStream RNG;
 
 	// === Helpers ===
-	void EnsureAnchor();
 	void BuildInitialEventPool(const FStoneRunConfig& Config);
 	void AddEventsFromPackId(FName PackId, bool bPreloadIfPackRequests);
 
@@ -307,9 +333,10 @@ private:
 
 	void ExecuteChoiceOutcomes(const FStoneChoiceData& Choice, bool bSoftFailPath);
 
-	void AdvanceTimeByDecision(); // step-based
-	bool UpdateNightStateFromTime01(float NewTime01, bool& bOutTransitionedToNight);
+	/** Increments TotalChoices counter. Called after each player action/decision. */
+	void IncrementChoiceCounter();
 
+	/** Applies day/night gameplay tags based on current state. */
 	void ApplyDayNightTags(bool bNowNight);
 
 	// Utility
@@ -373,9 +400,7 @@ TArray<FName> TemporaryPackIds;
 UPROPERTY()
 TArray<FName> PendingEventIds;
 
-// --- External day/night authority (Ultra Dynamic Skies) ---
-UPROPERTY()
-bool bExternalDayNightAuthorityEnabled = false;
+// (Time is now externally controlled by UDS - no internal day/night calculation)
 
 // --- Travel runtime state (real-time action) ---
 UPROPERTY()

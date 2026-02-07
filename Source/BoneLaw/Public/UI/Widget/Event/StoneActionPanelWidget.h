@@ -6,60 +6,61 @@
 #include "UI/Widget/StoneUserWidget.h"
 #include "StoneActionPanelWidget.generated.h"
 
+class UStoneCustomTextBlock;
 class UProgressBar;
+class UTextBlock;
+
 class UStoneWidgetController;
 class UStoneOverlayWidgetController;
+
 class UStoneActionSubsystem;
 class UStoneActionDefinitionData;
-class UStoneCustomButton;
-class UStoneEventData;
 struct FStoneSnapshot;
+class UStoneEventData;
 
-/**
- * Action panel (View) – starts actions via UStoneActionSubsystem.
- *
- * Responsibilities:
- * - Provide one or more action buttons (BP layout).
- * - Enforce deterministic enabled/disabled state (no spamming).
- * - Optionally display action progress.
- *
- * Controller contract:
- * - SetOverlayController is passed a base UStoneWidgetController* (tutorial style).
- * - Internally we cast to UStoneOverlayWidgetController to access overlay-only API/delegates.
- */
-UCLASS(Abstract, BlueprintType)
+class UStoneCustomButton;
+
+UCLASS()
 class BONELAW_API UStoneActionPanelWidget : public UStoneUserWidget
 {
 	GENERATED_BODY()
 
 public:
-	/** Called by owning overlay after controller is created/assigned. */
+	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
+
 	UFUNCTION(BlueprintCallable, Category="Stone|UI")
 	void SetOverlayController(UStoneWidgetController* InController);
 
 protected:
-	virtual void NativeConstruct() override;
-	virtual void NativeDestruct() override;
+	// Optional action preset to start (set in BP defaults)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Stone|Action")
+	TObjectPtr<UStoneActionDefinitionData> ActionToStart;
 
-	// ===== BindWidgets =====
-	UPROPERTY(BlueprintReadWrite, meta=(BindWidgetOptional, AllowPrivateAccess="true"))
-	TObjectPtr<UProgressBar> PB_ActionProgress = nullptr;
+	// === Bound widgets (create them in WBP_ActionPanel with EXACT names) ===
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UProgressBar> PB_ActionProgress;
 
-	UPROPERTY(BlueprintReadWrite, meta=(BindWidget, AllowPrivateAccess="true"))
-	TObjectPtr<UStoneCustomButton> Btn_StartAction = nullptr;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UStoneCustomButton> Btn_StartAction;
 
-	// ===== Config (set in BP child defaults) =====
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Stone|UI")
-	TObjectPtr<UStoneActionDefinitionData> ActionToStart = nullptr;
+	// NEW: informational text blocks
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UStoneCustomTextBlock> TB_ActionTitle;
+
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UStoneCustomTextBlock> TB_ActionSubtitle;
+
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UStoneCustomTextBlock> TB_ActionETA;
+
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UStoneCustomTextBlock> TB_ActionStatus;
 
 private:
-	UPROPERTY()
-	TObjectPtr<UObject> OverlayController = nullptr;
+	void BindAll();
+	void UnbindAll();
 
-	UPROPERTY()
-	TObjectPtr<UStoneActionSubsystem> ActionSubsystem = nullptr;
-
-	// Delegate handlers
 	UFUNCTION()
 	void HandleOverlaySnapshotChanged(const FStoneSnapshot& Snapshot);
 
@@ -72,14 +73,19 @@ private:
 	UFUNCTION()
 	void HandleActionProgressChanged(float Progress01);
 
+	void RefreshEnabledState();
+	void RefreshProgressVisual();
+	void RefreshInfoVisual();
+
 	UFUNCTION()
 	void HandleStartActionClicked();
 
-	void BindAll();
-	void UnbindAll();
-	void RefreshEnabledState();
-	void RefreshProgressVisual();
-
-	// Helper
 	UStoneOverlayWidgetController* GetOverlayController() const;
+
+private:
+	UPROPERTY()
+	TObjectPtr<UStoneWidgetController> OverlayController;
+
+	UPROPERTY()
+	TObjectPtr<UStoneActionSubsystem> ActionSubsystem;
 };

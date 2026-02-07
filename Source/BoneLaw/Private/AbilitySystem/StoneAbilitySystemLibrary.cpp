@@ -32,19 +32,17 @@ bool UStoneAbilitySystemLibrary::MakeWidgetControllerParams(const UObject* World
 			AStonePlayerState* PS = PC->GetPlayerState<AStonePlayerState>();
 			UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent();
 			UAttributeSet* AS = PS->GetAttributeSet();
-			UStoneRunSubsystem* RunSS = PC->GetGameInstance()->GetSubsystem<UStoneRunSubsystem>();
 			
-			// Params befüllen (nur Felder setzen, die du in deinem Struct wirklich hast)
+			// Base params only (4 arguments) - RunSubsystem is OverlayController-specific
 			OutParams.PlayerController = PC;
 			OutParams.PlayerState = PC->PlayerState;
 			OutParams.AbilitySystemComponent = ASC;
 			OutParams.AttributeSet = AS;
-			OutParams.RunSubsystem = RunSS;
 			
 			return true;
 		}
 	}
-	return true;
+	return false;
 }
 
 UStoneOverlayWidgetController* UStoneAbilitySystemLibrary::GetOverlayWidgetController(const UObject* WorldContextObject)

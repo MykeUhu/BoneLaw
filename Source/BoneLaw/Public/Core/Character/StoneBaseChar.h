@@ -14,6 +14,9 @@ class UGameplayAbility;
 class UStoneAbilitySystemComponent;
 class UStoneAttributeSet;
 
+// Aura pattern: Delegate fired when ASC is registered on this character
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnASCRegistered, UAbilitySystemComponent*);
+
 UCLASS(Abstract)
 class BONELAW_API AStoneBaseChar : public ACharacter, public IAbilitySystemInterface
 {
@@ -27,6 +30,9 @@ public:
 
 	UStoneAbilitySystemComponent* GetStoneASC() const { return AbilitySystemComponent; }
 	UStoneAttributeSet* GetStoneAttributeSet() const { return AttributeSet; }
+
+	// Aura pattern: Delegate for when ASC is ready (used by Debuff components, etc.)
+	FOnASCRegistered OnAscRegistered;
 
 protected:
 	/**

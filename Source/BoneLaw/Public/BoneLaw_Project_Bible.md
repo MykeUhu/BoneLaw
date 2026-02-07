@@ -223,27 +223,33 @@ Each axis is a float in range **[-100..+100]**:
   (Other axes exist but demo can focus on 2–4.)
 
 ## 8.2 Attribute mapping (GAS)
-Worldline reads culture attributes from GAS via **AttributeRegistry stable names**, e.g.:
-- Empathy, Violence
-- Innovation, Spirituality
-- Xenophobia
-- TabooStrictness
+Worldline reads culture attributes directly from GAS via `UStoneAttributeSet::GetXyzAttribute()` (Aura pattern).  
+**Rule:** `UStoneWorldlineDirector` accesses attributes directly - no Registry, no StableNames, no enums:
+- `CultureEmpathy`, `CultureViolence`
+- `CultureInnovation`, `CultureSpirituality`
+- `CultureXenophobia`
+- `CultureTabooStrictness`
 
 Mapping examples:
-- Mercy/Ruthless axis ≈ `Violence - Empathy`
-- Tradition/Innovation axis ≈ `Innovation - Spirituality`
-- Xenophobia axis ≈ `(Xenophobia - 50) * 2`
+- Mercy/Ruthless axis = `CultureViolence - CultureEmpathy`
+- Tradition/Innovation axis = `CultureInnovation - CultureSpirituality`
+- Xenophobia axis = `(CultureXenophobia - 50) * 2`
 
 ## 8.3 Milestones & payoffs
 When |axis| crosses thresholds:
-- **>= 60:** “strong stance” (may set milestone)
-- **>= 85:** “extreme stance” triggers forced payoff event
+- **>= 60:** "strong stance" (may set milestone)
+- **>= 85:** "extreme stance" triggers forced payoff event
 
-Example forced events (must exist as assets):
-- `WL_Cannibal_FirstTime` (forced)
-- `WL_Breakthrough_Tools` (forced)
-- `WL_Ritual_Healing` (forced)
-- `WL_Raiders_Scouts` (high)
+**Rule:** Milestone events are identified by **GameplayTags**, not hardcoded FNames.
+Events must have matching tags in their `EventTags` container.
+
+Milestone Event Tags (defined in `FStoneGameplayTags`):
+- `MilestoneEvent.Cannibal.FirstTime` (forced)
+- `MilestoneEvent.Tools.Breakthrough` (forced)
+- `MilestoneEvent.Healer.Breakthrough` (forced)
+- `MilestoneEvent.Raiders.FirstContact` (high)
+- `MilestoneEvent.Spirits.Awakening` (high)
+- `MilestoneEvent.Taboo.Shattered` (high)
 
 ---
 
@@ -370,7 +376,6 @@ BoneLaw is **UI‑only**:
 Canonical content layout (matches demo project):
 - `/Game/Blueprints/Game/Stone/Events/`  (StoneEvent primary assets)
 - `/Game/Blueprints/Game/Stone/Packs/`   (StonePack primary assets)
-- `/Game/Blueprints/Data/Attributes/`    (AttributeRegistry)
 - `/Game/Blueprints/Game/Stone/UI/`      (UMG)
 - `/Game/Blueprints/Game/Stone/Stage/`   (stage actors / dressing)
 
@@ -394,8 +399,7 @@ Primary asset scanning (SSOT for content discovery):
     - (GameMode sets `DefaultPawnClass = nullptr`)
 
 ### C) Stone Content settings (SSOT)
-- **Project Settings → Game → Stone Content**
-    - `AttributeRegistry` (required)
+- **Project Settings -> Game -> Stone Content**
     - `RequiredWorldlineEventIds`
     - dev toggles for validation / convenience
 
@@ -418,7 +422,6 @@ Holds all native GameplayTags and provides `Get()` access.
 
 ## 14.3 `UStoneContentSettings` : `UDeveloperSettings` (Config=Game)
 Project Settings surface (SSOT):
-- `AttributeRegistry` (soft reference)
 - `RequiredWorldlineEventIds`
 - validation/dev toggles
 
@@ -433,9 +436,13 @@ Authoritative run controller:
 - builds initial event pool from packs (SSOT; no hardcoded EventIds)
 - drives event selection + scheduling
 - broadcasts `OnSnapshotChanged` / `OnEventChanged`
+- **GAS Access:** Gets ASC via `AStonePlayerState` (not via RunAnchor)
 
-## 14.5 `AStoneRunAnchor` : `AActor`
-Runtime anchor actor that owns/initializes GAS + `UAbilitySystemComponent` for the run.
+## 14.5 `AStonePlayerState` : `APlayerState`
+**GAS Owner for the run.** Implements `IAbilitySystemInterface`.
+- Owns `UStoneAbilitySystemComponent`
+- Owns `UStoneAttributeSet` (single source of truth for all attributes)
+- PlayerState is the correct GAS owner per Unreal Engine best practices for multiplayer
 
 ## 14.6 `UStoneEventLibrary` / `UStonePackLibrary` : `UObject`
 Primary-asset caches:
@@ -531,14 +538,44 @@ Created by `AStoneHUD::InitOverlay()`.
 
 ---
 
-# 17) StageController & day/night rig
+# 17) Time System (UDS Integration)
+
+**Single Source of Truth:** Ultra Dynamic Sky (UDS) controls all time.
+C++ does NOT calculate time internally - it only tracks counters.
+
+## Blueprint Integration (GameMode or PlayerController)
+Bind to UDS events and forward to RunSubsystem:
+
+```
+UDS "Bind Event to Sunrise"  ->  RunSubsystem->OnSunrise()
+UDS "Bind Event to Sunset"   ->  RunSubsystem->OnSunset()
+UDS "OnHourChanged"          ->  RunSubsystem->OnHourChanged(Hour)
+```
+
+## FStoneTimeState (simplified)
+```cpp
+int32 DayIndex;         // Current day (starts at 1, incremented on sunrise)
+bool bIsNight;          // Set by UDS via Blueprint
+int32 TotalChoices;     // Player actions made
+int32 TotalNightsPassed;// Nights completed
+int32 CurrentHour;      // 0-23, for UI display
+```
+
+## Ambient Events (rare time-based)
+- `OnHourChanged()` has 5% chance to queue an ambient event
+- Events are queued (not auto-presented) - UI must call `OpenNextPendingEvent()`
+- This prevents event spam while allowing occasional time-based surprises
+
+---
+
+# 17b) StageController & day/night rig
 
 Stage logic is presentation-only:
 - **Input:** `FStoneStageState` (derived from snapshot)
 - **Output:** lights, PP, NPC visuals
 
 Minimum stage state fields:
-- TimeOfDay01, bIsNight
+- bIsNight, CurrentHour (from UDS)
 - bFireUnlocked
 - Morale / Warmth (optional)
 
@@ -588,10 +625,11 @@ Minimum stage state fields:
 # 20) Minimal demo content recipe (first implementation)
 
 ## Required worldline events (create these assets)
-- `WL_Cannibal_FirstTime`
-- `WL_Breakthrough_Tools`
-- `WL_Ritual_Healing`
-- `WL_Raiders_Scouts`
+These events must have the corresponding `MilestoneEvent.*` tag in their `EventTags`:
+- Event with tag `MilestoneEvent.Cannibal.FirstTime`
+- Event with tag `MilestoneEvent.Tools.Breakthrough`
+- Event with tag `MilestoneEvent.Healer.Breakthrough`
+- Event with tag `MilestoneEvent.Raiders.FirstContact`
 
 ## Starter pack
 `Pack_Starter` includes 10–12 events:
@@ -623,17 +661,56 @@ Each includes 5–8 events:
 
 ---
 
-# Appendix A) Diagrams
+# Appendix A) GAS Architecture
+
+BoneLaw uses Unreal's Gameplay Ability System for attribute management.
+The architecture follows UE5 best practices for multiplayer-ready code.
+
+```
++-------------------------------------------------------------+
+|                    AStonePlayerState                        |
+|  +-------------------------------------------------------+  |
+|  |  UStoneAbilitySystemComponent (Owner + Avatar)        |  |
+|  |  +-- UStoneAttributeSet                               |  |
+|  |      +-- Primary: Strength, Intelligence, Endurance   |  |
+|  |      +-- Secondary: CarryCapacity, TravelSpeed, ...   |  |
+|  |      +-- Vital: Food, Water, Health, Morale, ...      |  |
+|  |      +-- Culture: CultureEmpathy, CultureViolence,... |  |
+|  |      +-- Knowledge: KnowledgeMedicine, ...            |  |
+|  |      +-- Worldline: WorldlineMercyRuthless, ...       |  |
+|  +-------------------------------------------------------+  |
++-------------------------------------------------------------+
+                              |
+                              | GetAbilitySystemComponent()
+                              v
++-------------------------------------------------------------+
+|  UStoneRunSubsystem (GameInstanceSubsystem)                 |
+|  - Caches PlayerState via EnsurePlayerStateCache()          |
+|  - GetASC() returns PlayerState's ASC                       |
+|  - Manages events, scheduler, worldline                     |
+|  - Attributes accessed directly via UStoneAttributeSet      |
++-------------------------------------------------------------+
+```
+
+**Key rules:**
+1. `AStonePlayerState` is the **only** GAS owner
+2. `UStoneAttributeSet` is the **single source of truth** for all attributes
+3. Attribute access follows Aura pattern: `UStoneAttributeSet::GetXyzAttribute()` directly
+4. No runtime spawned actors with their own ASC
+
+---
+
+# Appendix B) Diagrams
 
 ## A1) Runtime flow (sequence)
-```mermaid
+\`\`\`mermaid
 sequenceDiagram
-    participant UI as WBP_RunScreen
-    participant Run as UStoneRunSubsystem
-    participant WL as UStoneWorldlineDirector
-    participant Pack as PackLibrary
-    participant EvLib as EventLibrary
-    participant Stage as StageController
+participant UI as WBP_RunScreen
+participant Run as UStoneRunSubsystem
+participant WL as UStoneWorldlineDirector
+participant Pack as PackLibrary
+participant EvLib as EventLibrary
+participant Stage as StageController
 
     UI->>Run: StartNewRun(Config)
     Run->>Pack: Preload packs (sync)
@@ -649,15 +726,15 @@ sequenceDiagram
     Run->>Run: PickNextEvent()
     Run-->>Stage: ApplyStageState(snapshot->stage)
     Run-->>UI: OnSnapshotChanged(snapshot)
-```
+\`\`\`
 
 ## A2) Data & cache overview
-```mermaid
+\`\`\`mermaid
 flowchart LR
-    AM[AssetManager] --> TAGS[Native Gameplay Tags]
-    AM --> Scan[Primary Asset Scan]
-    Scan --> Events[StoneEventData Assets]
-    Scan --> Packs[StoneEventPackData Assets]
+AM[AssetManager] --> TAGS[Native Gameplay Tags]
+AM --> Scan[Primary Asset Scan]
+Scan --> Events[StoneEventData Assets]
+Scan --> Packs[StoneEventPackData Assets]
 
     Run[RunSubsystem] --> EvLib[EventLibrary Cache]
     Run --> PackLib[PackLibrary Cache]
@@ -669,21 +746,21 @@ flowchart LR
 
     Packs --> PackLib
     Events --> EvLib
-```
+\`\`\`
 
 ## A3) Weight composition
-```mermaid
+\`\`\`mermaid
 flowchart TD
-    Base[Resolver BaseWeight] --> MulPack[× PackMultiplier]
-    MulPack --> MulFocus[× FocusMultiplier]
-    MulFocus --> MulWL[× WorldlineMultiplier]
-    MulWL --> MulCrisis[× CrisisMultiplier]
-    MulCrisis --> Final[FinalWeight]
-```
+Base[Resolver BaseWeight] --> MulPack[× PackMultiplier]
+MulPack --> MulFocus[× FocusMultiplier]
+MulFocus --> MulWL[× WorldlineMultiplier]
+MulWL --> MulCrisis[× CrisisMultiplier]
+MulCrisis --> Final[FinalWeight]
+\`\`\`
 
 ---
 
-# Appendix B) Naming conventions & rules
+# Appendix C) Naming conventions & rules
 
 1. **AssetName == Id**
     - StoneEvent asset name must equal `EventId`
@@ -698,13 +775,69 @@ flowchart TD
 
 ---
 
-# Appendix C) Anti-patterns (do not do this)
+# Appendix D) Anti-patterns (do not do this)
 
 - Don’t hide core logic in random Blueprint graphs (validator can’t see it).
 - Don’t load assets in the pick hot path (no `TryLoad()` while picking).
 - Don’t build one giant event pool with no packs.
 - Don’t add 100 skills/attributes in demo. Keep culture axes few and meaningful.
 - Don’t expand to open-world gameplay before the event engine is fun.
+
+---
+
+# Appendix E) Blueprint Setup Guide (WICHTIG)
+
+## E.1) Architektur-Ueberblick
+
+**AStonePlayerState** ist der einzige GAS Owner (ASC + AttributeSet).
+**UStoneRunSubsystem** holt ASC via PlayerState, verwaltet Events/Packs/Scheduler.
+**Zeit** kommt von Ultra Dynamic Sky (UDS) via Blueprint-Events.
+
+## E.2) GameMode/PlayerController Blueprint Setup
+
+### UDS Events binden (in BeginPlay):
+```
+1. Get "Ultra Dynamic Sky" Actor -> Store as Variable "UDS Ref"
+2. UDS Ref -> Bind Event to Sunrise -> Custom Event "OnUDSSunrise"
+3. UDS Ref -> Bind Event to Sunset -> Custom Event "OnUDSSunset"
+4. UDS Ref -> Bind Event to Current Hour Changed -> Custom Event "OnUDSHourChanged"
+```
+
+### Events weiterleiten:
+```
+OnUDSSunrise: GetGameInstance -> GetSubsystem(UStoneRunSubsystem) -> OnSunrise()
+OnUDSSunset:  GetGameInstance -> GetSubsystem(UStoneRunSubsystem) -> OnSunset()
+OnUDSHourChanged: GetGameInstance -> GetSubsystem(UStoneRunSubsystem) -> OnHourChanged(Hour)
+```
+
+## E.3) Wichtige Blueprint Nodes
+
+**RunSubsystem** (Get via GetGameInstance -> GetSubsystem):
+- StartNewRun(Config) - Spiel starten
+- ApplyChoice(Index) - Spieler waehlt Option
+- GetCurrentEvent() - Aktuelles Event fuer UI
+- GetSnapshot() - Attribut-Werte fuer UI
+- OnSunrise(), OnSunset(), OnHourChanged(Hour) - Zeit-Events von UDS
+- IsNight(), GetCurrentDay() - Zeit-Abfragen
+
+**PlayerState** (Get via GetPlayerState -> Cast to AStonePlayerState):
+- GetStoneAbilitySystemComponent() - ASC fuer GAS
+- GetStoneAttributeSet() - Direkt Attribute lesen
+
+## E.4) GELOESCHTE Klassen (existieren nicht mehr!)
+
+- AStoneRunAnchor - AStonePlayerState ist jetzt GAS Owner
+- UStoneStatSet, UStoneCultureSet, UStoneKnowledgeSet - Alles in UStoneAttributeSet
+- SetExternalDayNightAuthorityEnabled(), SetIsNightFromExternal() - Ersetzt durch OnSunrise/OnSunset
+- TimeOfDay01 - Entfernt, UDS liefert Zeit
+- /GAS/ Ordner - Alles jetzt in /AbilitySystem/
+
+## E.5) Attribut StableNames (fuer DataAssets)
+
+Vital: Food, Water, Warmth, Morale, Trust, Health
+Primary: Strength, Intelligence, Endurance, Willpower, Social
+Culture: CultureEmpathy, CultureViolence, CultureInnovation, CultureSpirituality
+Worldline: WorldlineMercyRuthless, WorldlineTraditionInnovation, etc.
 
 ---
 

@@ -20,4 +20,3 @@ void UStoneGameInstance::Init()
 			*GetNameSafe(DefaultUITheme));
 	}
 }
-
