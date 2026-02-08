@@ -2,7 +2,21 @@
 
 #include "AbilitySystem/StoneAttributeSet.h"
 #include "GameplayEffectTypes.h"
-#include "GameplayTagsManager.h"
+
+namespace StoneMMC
+{
+	static float Primary01(float Value)
+	{
+		// Design-softcap at 50. Primary starts low (0-10) and grows over long play.
+		return FMath::Clamp(Value, 0.f, 50.f) / 50.f;
+	}
+
+	static float KnowledgeDelta01(float Value)
+	{
+		// Knowledge baseline is 50 (neutral). Only progress above baseline increases caps.
+		return FMath::Clamp((Value - 50.f) / 50.f, 0.f, 1.f);
+	}
+}
 
 UMMC_StoneMaxHealth::UMMC_StoneMaxHealth()
 {
@@ -10,7 +24,22 @@ UMMC_StoneMaxHealth::UMMC_StoneMaxHealth()
 	EnduranceDef.AttributeSource = EGameplayEffectAttributeCaptureSource::Target;
 	EnduranceDef.bSnapshot = false;
 
+	StrengthDef.AttributeToCapture = UStoneAttributeSet::GetStrengthAttribute();
+	StrengthDef.AttributeSource = EGameplayEffectAttributeCaptureSource::Target;
+	StrengthDef.bSnapshot = false;
+
+	WillpowerDef.AttributeToCapture = UStoneAttributeSet::GetWillpowerAttribute();
+	WillpowerDef.AttributeSource = EGameplayEffectAttributeCaptureSource::Target;
+	WillpowerDef.bSnapshot = false;
+
+	KnowledgeMedicineDef.AttributeToCapture = UStoneAttributeSet::GetKnowledgeMedicineAttribute();
+	KnowledgeMedicineDef.AttributeSource = EGameplayEffectAttributeCaptureSource::Target;
+	KnowledgeMedicineDef.bSnapshot = false;
+
 	RelevantAttributesToCapture.Add(EnduranceDef);
+	RelevantAttributesToCapture.Add(StrengthDef);
+	RelevantAttributesToCapture.Add(WillpowerDef);
+	RelevantAttributesToCapture.Add(KnowledgeMedicineDef);
 }
 
 float UMMC_StoneMaxHealth::CalculateBaseMagnitude_Implementation(const FGameplayEffectSpec& Spec) const
@@ -23,13 +52,32 @@ float UMMC_StoneMaxHealth::CalculateBaseMagnitude_Implementation(const FGameplay
 	Params.TargetTags = TargetTags;
 
 	float Endurance = 0.f;
+	float Strength = 0.f;
+	float Willpower = 0.f;
+	float KnowledgeMedicine = 0.f;
+
 	GetCapturedAttributeMagnitude(EnduranceDef, Spec, Params, Endurance);
+	GetCapturedAttributeMagnitude(StrengthDef, Spec, Params, Strength);
+	GetCapturedAttributeMagnitude(WillpowerDef, Spec, Params, Willpower);
+	GetCapturedAttributeMagnitude(KnowledgeMedicineDef, Spec, Params, KnowledgeMedicine);
+
 	Endurance = FMath::Max(Endurance, 0.f);
+	Strength = FMath::Max(Strength, 0.f);
+	Willpower = FMath::Max(Willpower, 0.f);
+	KnowledgeMedicine = FMath::Max(KnowledgeMedicine, 0.f);
 
-	// BoneLaw tuning:
-	// Base 80, +2.5 per Endurance point (Aura-like curve without levels)
-	const float Base = 80.f;
-	const float PerEndurance = 2.5f;
+	// --- Designer intent ---
+	// Health is primarily physical robustness (Endurance), supported by Strength/Willpower.
+	// Medicine increases max health only as you progress beyond the baseline knowledge (50).
+	const float R =
+		FMath::Clamp(
+			0.45f * StoneMMC::Primary01(Endurance) +
+			0.20f * StoneMMC::Primary01(Strength) +
+			0.15f * StoneMMC::Primary01(Willpower) +
+			0.20f * StoneMMC::KnowledgeDelta01(KnowledgeMedicine),
+			0.f, 1.f);
 
-	return Base + PerEndurance * Endurance;
+	// Start ~100, late game up to ~1000
+	const float Max = 100.f + 900.f * R;
+	return FMath::Clamp(Max, 100.f, 1000.f);
 }

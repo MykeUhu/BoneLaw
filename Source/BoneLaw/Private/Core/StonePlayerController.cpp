@@ -9,6 +9,8 @@
 #include "UI/HUD/StoneHUD.h"
 #include "UI/Widget/StoneUserWidget.h"
 #include "Runtime/StoneRunSubsystem.h"
+#include "Runtime/StoneActionSubsystem.h"
+#include "Data/StoneActionDefinitionData.h"
 
 AStonePlayerController::AStonePlayerController()
 {
@@ -72,20 +74,58 @@ void AStonePlayerController::SetSimSpeed(float NewSpeed)
 
 void AStonePlayerController::StartExploreExpedition(float DurationSeconds, float MinEventGapSeconds, float MaxEventGapSeconds, bool bTriggerFirstEventImmediately)
 {
-	UStoneRunSubsystem* RunSS = GetGameInstance() ? GetGameInstance()->GetSubsystem<UStoneRunSubsystem>() : nullptr;
-	checkf(RunSS, TEXT("StoneRunSubsystem missing"));
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StonePlayerController] StartExploreExpedition failed: World is null"));
+		return;
+	}
+
+	UStoneActionSubsystem* ActionSS = World->GetSubsystem<UStoneActionSubsystem>();
+	if (!ActionSS)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StonePlayerController] StartExploreExpedition failed: StoneActionSubsystem missing"));
+		return;
+	}
 
 	// SSOT: pack id comes from PC defaults (can be overridden per BP child).
 	const FName PackId = DefaultExplorePack;
-	RunSS->StartExploreExpedition(PackId, DurationSeconds, MinEventGapSeconds, MaxEventGapSeconds, bTriggerFirstEventImmediately);
+	if (PackId.IsNone())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StonePlayerController] StartExploreExpedition failed: DefaultExplorePack is None"));
+		return;
+	}
+
+	// Build a transient action definition (no hardcoded content paths; caller provides runtime parameters).
+	UStoneActionDefinitionData* Def = NewObject<UStoneActionDefinitionData>(this);
+	Def->ActionType = EStoneActionType::Explore;
+	Def->DisplayName = FText::FromString(TEXT("Explore"));
+	Def->BaseDurationSeconds = FMath::Max(1.f, DurationSeconds);
+	Def->RandomMinGapSeconds = FMath::Max(0.f, MinEventGapSeconds);
+	Def->RandomMaxGapSeconds = FMath::Max(Def->RandomMinGapSeconds, MaxEventGapSeconds);
+	Def->bAllowImmediateRandom = bTriggerFirstEventImmediately;
+	Def->PackIdsToActivate = { PackId };
+
+	const bool bStarted = ActionSS->StartAction(Def);
+	UE_LOG(LogTemp, Log, TEXT("[StonePlayerController] StartExploreExpedition -> %s (Pack=%s, Duration=%.1fs)"),
+		bStarted ? TEXT("STARTED") : TEXT("FAILED"),
+		*PackId.ToString(),
+		Def->BaseDurationSeconds);
 }
 
 void AStonePlayerController::StopExpedition(bool bForceReturnEvent)
 {
-	if (UStoneRunSubsystem* RunSS = GetGameInstance() ? GetGameInstance()->GetSubsystem<UStoneRunSubsystem>() : nullptr)
+	if (UWorld* World = GetWorld())
 	{
-		RunSS->StopExpedition(bForceReturnEvent);
+		if (UStoneActionSubsystem* ActionSS = World->GetSubsystem<UStoneActionSubsystem>())
+		{
+			ActionSS->StopCurrentAction(bForceReturnEvent);
+			UE_LOG(LogTemp, Log, TEXT("[StonePlayerController] StopExpedition -> StopCurrentAction(ForceReturnHome=%s)"),
+				bForceReturnEvent ? TEXT("true") : TEXT("false"));
+			return;
+		}
 	}
+	UE_LOG(LogTemp, Warning, TEXT("[StonePlayerController] StopExpedition: ActionSubsystem missing (nothing to stop)"));
 }
 
 UStoneAbilitySystemComponent* AStonePlayerController::GetASC()

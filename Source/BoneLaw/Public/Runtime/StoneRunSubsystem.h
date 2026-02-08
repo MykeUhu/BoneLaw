@@ -7,10 +7,7 @@
 #include "Game/StoneRunTraceBuffer.h"
 #include "Game/Events/StoneEventResolver.h"
 
-#include "Core/StoneContentSettings.h"
-#include "Data/StoneEventPackData.h"
 #include "TimerManager.h"
-#include "Core/StoneGameplayTags.h"
 #include "StoneRunSubsystem.generated.h"
 
 class UStonePackLibrary;
@@ -238,6 +235,9 @@ public:
 	void AddStateTags(const FGameplayTagContainer& TagsToAdd);
 	void RemoveStateTags(const FGameplayTagContainer& TagsToRemove);
 	FGameplayTagContainer GetCurrentStateTags() const;
+	
+	// Utility
+	UAbilitySystemComponent* GetASC() const;
 
 protected:
 	virtual void Deinitialize() override;
@@ -329,9 +329,6 @@ private:
 	/** Applies day/night gameplay tags based on current state. */
 	void ApplyDayNightTags(bool bNowNight);
 
-	// Utility
-	UAbilitySystemComponent* GetASC() const;
-
 	void EnsureWorldlineDirector();
 	void UpdateWorldlineAndUnlocks();
 
@@ -382,51 +379,50 @@ private:
 	UPROPERTY()
 	bool bExpeditionReturnQueued = false;
 
-// --- Temporary packs (activated only while an action is active) ---
-UPROPERTY()
-TArray<FName> TemporaryPackIds;
+	// --- Temporary packs (activated only while an action is active) ---
+	UPROPERTY()
+	TArray<FName> TemporaryPackIds;
 
-// --- Pending events (ambient/idle) ---
-UPROPERTY()
-TArray<FName> PendingEventIds;
+	// --- Pending events (ambient/idle) ---
+	UPROPERTY()
+	TArray<FName> PendingEventIds;
 
-// (Time is now externally controlled by UDS - no internal day/night calculation)
+	// (Time is now externally controlled by UDS - no internal day/night calculation)
 
-// --- Travel runtime state (real-time action) ---
-UPROPERTY()
-bool bTravelActive = false;
+	// --- Travel runtime state (real-time action) ---
+	UPROPERTY()
+	bool bTravelActive = false;
 
-UPROPERTY()
-FName TravelPackId = NAME_None;
+	UPROPERTY()
+	FName TravelPackId = NAME_None;
 
-UPROPERTY()
-EStoneTravelPhase TravelPhase = EStoneTravelPhase::None;
+	UPROPERTY()
+	EStoneTravelPhase TravelPhase = EStoneTravelPhase::None;
 
-UPROPERTY()
-float TravelTotalSeconds = 0.f;
+	UPROPERTY()
+	float TravelTotalSeconds = 0.f;
 
-UPROPERTY()
-float TravelOutboundSeconds = 0.f;
+	UPROPERTY()
+	float TravelOutboundSeconds = 0.f;
 
-UPROPERTY()
-float TravelReturnSeconds = 0.f;
+	UPROPERTY()
+	float TravelReturnSeconds = 0.f;
 
-UPROPERTY()
-float TravelLegElapsedSeconds = 0.f;
+	UPROPERTY()
+	float TravelLegElapsedSeconds = 0.f;
 
-// Countdown until next optional random travel event (scaled by SimulationSpeed)
-UPROPERTY()
-float TravelRandomCountdownSeconds = 0.f;
+	// Countdown until next optional random travel event (scaled by SimulationSpeed)
+	UPROPERTY()
+	float TravelRandomCountdownSeconds = 0.f;
 
-UPROPERTY()
-float TravelRandomMinGapSeconds = 30.f;
+	UPROPERTY()
+	float TravelRandomMinGapSeconds = 30.f;
 
-UPROPERTY()
-float TravelRandomMaxGapSeconds = 90.f;
+	UPROPERTY()
+	float TravelRandomMaxGapSeconds = 90.f;
 
-UPROPERTY()
-float TravelRandomChance01 = 0.25f;
-
+	UPROPERTY()
+	float TravelRandomChance01 = 0.25f;
 
 	FTimerHandle ExpeditionTickHandle;
 

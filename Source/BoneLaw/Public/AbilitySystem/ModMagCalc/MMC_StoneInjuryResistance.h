@@ -2,26 +2,23 @@
 
 #include "CoreMinimal.h"
 #include "GameplayModMagnitudeCalculation.h"
-#include "MMC_StoneMaxHealth.generated.h"
+#include "MMC_StoneInjuryResistance.generated.h"
 
 /**
- * MaxHealth (Cap) for BoneLaw/Stone.
- * Baseline starts around 100 and scales up to ~1000 via Primary + Knowledge (Delta over baseline 50).
- * Culture intentionally NOT used here (reserved for event/outcome weighting).
+ * InjuryResistance (0..0.5).
+ * Represents severity reduction (less frustrating than pure RNG chance).
  */
 UCLASS()
-class BONELAW_API UMMC_StoneMaxHealth : public UGameplayModMagnitudeCalculation
+class BONELAW_API UMMC_StoneInjuryResistance : public UGameplayModMagnitudeCalculation
 {
 	GENERATED_BODY()
 
 public:
-	UMMC_StoneMaxHealth();
-
+	UMMC_StoneInjuryResistance();
 	virtual float CalculateBaseMagnitude_Implementation(const FGameplayEffectSpec& Spec) const override;
 
 private:
 	FGameplayEffectAttributeCaptureDefinition EnduranceDef;
-	FGameplayEffectAttributeCaptureDefinition StrengthDef;
 	FGameplayEffectAttributeCaptureDefinition WillpowerDef;
 	FGameplayEffectAttributeCaptureDefinition KnowledgeMedicineDef;
 };
