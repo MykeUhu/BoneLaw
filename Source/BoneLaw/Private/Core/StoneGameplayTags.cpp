@@ -490,14 +490,9 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 	    FString("Vital attribute: Health")
 	    );
 
-	GameplayTags.Attributes_Vital_MaxHealth = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Vital.MaxHealth"), 
-	    FString("Vital attribute: MaxHealth")
-	    );
-
-	GameplayTags.Attributes_Vital_HealthRegeneration = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Vital.HealthRegeneration"), 
-	    FString("Vital attribute: Health regeneration")
+	GameplayTags.Attributes_Secondary_MaxHealth = UGameplayTagsManager::Get().AddNativeGameplayTag(
+	    FName("Attributes.Secondary.MaxHealth"), 
+	    FString("Secondary attribute: MaxHealth")
 	    );
 
 	GameplayTags.Attributes_Vital_Food = UGameplayTagsManager::Get().AddNativeGameplayTag(
@@ -505,9 +500,9 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 	    FString("Vital attribute: Food")
 	    );
 	
-	GameplayTags.Attributes_Vital_MaxFood = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Attributes.Vital.MaxFood"),
-		FString("Vital attribute: MaxFood")
+	GameplayTags.Attributes_Secondary_MaxFood = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Secondary.MaxFood"),
+		FString("Secondary attribute: MaxFood")
 		);
 
 	GameplayTags.Attributes_Vital_Water = UGameplayTagsManager::Get().AddNativeGameplayTag(
@@ -515,29 +510,24 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 	    FString("Vital attribute: Water")
 	    );
 	
-	GameplayTags.Attributes_Vital_MaxWater = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Attributes.Vital.MaxWater"),
-		FString("Vital attribute: MaxWater")
+	GameplayTags.Attributes_Secondary_MaxWater = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Secondary.MaxWater"),
+		FString("Secondary attribute: MaxWater")
 		);
 
 	GameplayTags.Attributes_Vital_Warmth = UGameplayTagsManager::Get().AddNativeGameplayTag(
 	    FName("Attributes.Vital.Warmth"), 
 	    FString("Vital attribute: Warmth")
 	    );
-	
-	GameplayTags.Attributes_Vital_MaxWarmth = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Attributes.Vital.MaxWarmth"),
-		FString("Vital attribute: MaxWarmth")
-		);
 
 	GameplayTags.Attributes_Vital_Morale = UGameplayTagsManager::Get().AddNativeGameplayTag(
 	    FName("Attributes.Vital.Morale"),
 	    FString("Vital attribute: Morale")
 	    );
 	
-	GameplayTags.Attributes_Vital_MaxMorale = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Attributes.Vital.MaxMorale"),
-		FString("Vital attribute: MaxMorale")
+	GameplayTags.Attributes_Secondary_MaxMorale = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Secondary.MaxMorale"),
+		FString("Secondary attribute: MaxMorale")
 		);
 
 	GameplayTags.Attributes_Vital_Trust = UGameplayTagsManager::Get().AddNativeGameplayTag(
@@ -545,9 +535,9 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 	    FString("Vital attribute: Trust")
 	    );
 	
-	GameplayTags.Attributes_Vital_MaxTrust = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Attributes.Vital.MaxTrust"),
-		FString("Vital attribute: MaxTrust")
+	GameplayTags.Attributes_Secondary_MaxTrust = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Secondary.MaxTrust"),
+		FString("Secondary attribute: MaxTrust")
 		);
 
 	GameplayTags.Attributes_Meta_IncomingDamage = UGameplayTagsManager::Get().AddNativeGameplayTag(

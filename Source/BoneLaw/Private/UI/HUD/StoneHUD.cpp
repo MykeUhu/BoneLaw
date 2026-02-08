@@ -6,7 +6,7 @@
 #include "UI/Widget/StoneUserWidget.h"
 #include "UI/WidgetController/StoneOverlayWidgetController.h"
 
-UStoneOverlayWidgetController* AStoneHUD::GetOverlayWidgetController(const FStoneWidgetControllerParams& WCParams)
+UStoneOverlayWidgetController* AStoneHUD::GetOverlayWidgetController(const FWidgetControllerParams& WCParams)
 {
 	if (OverlayWidgetController == nullptr)
 	{
@@ -27,7 +27,7 @@ void AStoneHUD::InitOverlay(APlayerController* PC, APlayerState* PS, UAbilitySys
 	UUserWidget* Widget = CreateWidget<UUserWidget>(GetWorld(), OverlayWidgetClass);
 	OverlayWidget = Cast<UStoneUserWidget>(Widget);
 
-	const FStoneWidgetControllerParams WidgetControllerParams(PC, PS, ASC, AS);
+	const FWidgetControllerParams WidgetControllerParams(PC, PS, ASC, AS);
 	UStoneOverlayWidgetController* WidgetController = GetOverlayWidgetController(WidgetControllerParams);
 
 	OverlayWidget->SetWidgetController(WidgetController);

@@ -51,9 +51,6 @@ public:
 	FOnAttributeChangedSignature OnWarmthChanged;
 	
 	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
-	FOnAttributeChangedSignature OnMaxWarmthChanged;
-	
-	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")
 	FOnAttributeChangedSignature OnMoraleChanged;
 	
 	UPROPERTY(BlueprintAssignable, Category="GAS|Attributes")

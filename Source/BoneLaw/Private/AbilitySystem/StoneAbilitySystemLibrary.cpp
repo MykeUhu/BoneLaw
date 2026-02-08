@@ -2,8 +2,6 @@
 
 #include "AbilitySystem/StoneAbilitySystemLibrary.h"
 
-#include "Game/Save/StoneSaveGame.h"
-
 #include "Kismet/GameplayStatics.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
@@ -13,16 +11,18 @@
 #include "UI/WidgetController/StoneOverlayWidgetController.h"
 #include "UI/WidgetController/StoneWidgetController.h" // falls FStoneWidgetControllerParams dort liegt
 
-// Optional: wenn du konkrete Attribute setzen willst (direkt), include dein Set:
-#include "AbilitySystem/StoneAttributeSet.h"
-
 // Optional: falls AbilityInfo im GameMode hängt
+#include "Core/StoneAbilityTypes.h"
 #include "Core/StoneGameMode.h"
+#include "Core/LoadScreenSaveGame.h"
 #include "Core/StonePlayerState.h"
-#include "GameFramework/PlayerState.h"
 #include "UI/HUD/StoneHUD.h"
 
-bool UStoneAbilitySystemLibrary::MakeWidgetControllerParams(const UObject* WorldContextObject, FStoneWidgetControllerParams& OutParams, AStoneHUD*& OutStoneHUD)
+
+bool UStoneAbilitySystemLibrary::MakeWidgetControllerParams(
+	const UObject* WorldContextObject,
+	FWidgetControllerParams& OutWCParams,
+	AStoneHUD*& OutStoneHUD)
 {
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(WorldContextObject, 0))
 	{
@@ -32,13 +32,11 @@ bool UStoneAbilitySystemLibrary::MakeWidgetControllerParams(const UObject* World
 			AStonePlayerState* PS = PC->GetPlayerState<AStonePlayerState>();
 			UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent();
 			UAttributeSet* AS = PS->GetAttributeSet();
-			
-			// Base params only (4 arguments) - RunSubsystem is OverlayController-specific
-			OutParams.PlayerController = PC;
-			OutParams.PlayerState = PC->PlayerState;
-			OutParams.AbilitySystemComponent = ASC;
-			OutParams.AttributeSet = AS;
-			
+
+			OutWCParams.AttributeSet = AS;
+			OutWCParams.AbilitySystemComponent = ASC;
+			OutWCParams.PlayerState = PS;
+			OutWCParams.PlayerController = PC;
 			return true;
 		}
 	}
@@ -47,7 +45,7 @@ bool UStoneAbilitySystemLibrary::MakeWidgetControllerParams(const UObject* World
 
 UStoneOverlayWidgetController* UStoneAbilitySystemLibrary::GetOverlayWidgetController(const UObject* WorldContextObject)
 {
-	FStoneWidgetControllerParams WCParams;
+	FWidgetControllerParams WCParams;
 	AStoneHUD* StoneHUD = nullptr;
 	if (MakeWidgetControllerParams(WorldContextObject, WCParams, StoneHUD))
 	{
@@ -56,69 +54,173 @@ UStoneOverlayWidgetController* UStoneAbilitySystemLibrary::GetOverlayWidgetContr
 	return nullptr;
 }
 
-void UStoneAbilitySystemLibrary::InitializeDefaultAttributesFromSaveData(const UObject* WorldContextObject, UAbilitySystemComponent* ASC, UStoneSaveGame* SaveGame)
+void UStoneAbilitySystemLibrary::InitializeDefaultAttributes(const UObject* WorldContextObject, EStoneCharacterClass CharacterClass, float Level, UAbilitySystemComponent* ASC)
 {
-	if (!ASC || !SaveGame) return;
+	AActor* AvatarActor = ASC->GetAvatarActor();
 
-	const UStoneAttributeSet* AttrCDO = GetDefault<UStoneAttributeSet>();
-	if (!AttrCDO) return;
+	UStoneCharacterClassInfo* CharacterClassInfo = GetCharacterClassInfo(WorldContextObject);
+	FStoneCharacterClassDefaultInfo ClassDefaultInfo = CharacterClassInfo->GetClassDefaultInfo(CharacterClass);
 
-	const FStoneGameplayTags& Tags = FStoneGameplayTags::Get();
+	FGameplayEffectContextHandle PrimaryAttributesContextHandle = ASC->MakeEffectContext();
+	PrimaryAttributesContextHandle.AddSourceObject(AvatarActor);
+	const FGameplayEffectSpecHandle PrimaryAttributesSpecHandle = ASC->MakeOutgoingSpec(ClassDefaultInfo.PrimaryAttributes, Level, PrimaryAttributesContextHandle);
+	ASC->ApplyGameplayEffectSpecToSelf(*PrimaryAttributesSpecHandle.Data.Get());
 
-	auto Clamp01_100 = [](float V) { return FMath::Clamp(V, 0.f, 100.f); };
+	FGameplayEffectContextHandle SecondaryAttributesContextHandle = ASC->MakeEffectContext();
+	SecondaryAttributesContextHandle.AddSourceObject(AvatarActor);
+	const FGameplayEffectSpecHandle SecondaryAttributesSpecHandle = ASC->MakeOutgoingSpec(CharacterClassInfo->SecondaryAttributes, Level, SecondaryAttributesContextHandle);
+	ASC->ApplyGameplayEffectSpecToSelf(*SecondaryAttributesSpecHandle.Data.Get());
 
-	// Apply MaxHealth first (health depends on it)
-	if (const float* SavedMax = SaveGame->AttributeValues.Find(Tags.Attributes_Vital_MaxHealth.GetTagName()))
-	{
-		const float MaxValue = FMath::Max(*SavedMax, 1.f);
-		ASC->SetNumericAttributeBase(UStoneAttributeSet::GetMaxHealthAttribute(), MaxValue);
-	}
+	FGameplayEffectContextHandle VitalAttributesContextHandle = ASC->MakeEffectContext();
+	VitalAttributesContextHandle.AddSourceObject(AvatarActor);
+	const FGameplayEffectSpecHandle VitalAttributesSpecHandle = ASC->MakeOutgoingSpec(CharacterClassInfo->VitalAttributes, Level, VitalAttributesContextHandle);
+	ASC->ApplyGameplayEffectSpecToSelf(*VitalAttributesSpecHandle.Data.Get());
+	
+	FGameplayEffectContextHandle CultureAttributeContextHandle = ASC->MakeEffectContext();
+	CultureAttributeContextHandle.AddSourceObject(AvatarActor);
+	const FGameplayEffectSpecHandle CultureAttributesSpecHandle = ASC->MakeOutgoingSpec(CharacterClassInfo->CultureAttributes, Level, CultureAttributeContextHandle);
+	ASC->ApplyGameplayEffectSpecToSelf(*CultureAttributesSpecHandle.Data.Get());
+	
+	FGameplayEffectContextHandle WorldlineAttributeContextHandle = ASC->MakeEffectContext();
+	WorldlineAttributeContextHandle.AddSourceObject(AvatarActor);
+	const FGameplayEffectSpecHandle WorldlineAttributesSpecHandle = ASC->MakeOutgoingSpec(CharacterClassInfo->WorldlineAttributes, Level, WorldlineAttributeContextHandle);
+	ASC->ApplyGameplayEffectSpecToSelf(*WorldlineAttributesSpecHandle.Data.Get());
+}
 
-	for (const TPair<FName, float>& It : SaveGame->AttributeValues)
-	{
-		const FGameplayTag Tag = FGameplayTag::RequestGameplayTag(It.Key, /*ErrorIfNotFound*/ false);
-		if (!Tag.IsValid()) continue;
+void UStoneAbilitySystemLibrary::InitializeDefaultAttributesFromSaveData(const UObject* WorldContextObject,
+	UAbilitySystemComponent* ASC, ULoadScreenSaveGame* SaveGame)
+{
+	UStoneCharacterClassInfo* CharacterClassInfo = GetCharacterClassInfo(WorldContextObject);
+	if (CharacterClassInfo == nullptr) return;
 
-		const TStaticFuncPtr<FGameplayAttribute()>* Getter = AttrCDO->TagsToAttributes.Find(Tag);
-		if (!Getter) continue;
+	const FStoneGameplayTags& GameplayTags = FStoneGameplayTags::Get();
 
-		FGameplayAttribute Attribute = (*Getter)();
+	const AActor* SourceAvatarActor = ASC->GetAvatarActor();
 
-		float Value = It.Value;
+	FGameplayEffectContextHandle EffectContexthandle = ASC->MakeEffectContext();
+	EffectContexthandle.AddSourceObject(SourceAvatarActor);
 
-		// Clamp known ranges (SetNumericAttributeBase bypasses PreAttributeChange)
-		if (Tag == Tags.Attributes_Vital_MaxHealth)
-		{
-			Value = FMath::Max(Value, 1.f);
-		}
-		else if (Tag == Tags.Attributes_Vital_Health)
-		{
-			const float CurrentMax = ASC->GetNumericAttribute(UStoneAttributeSet::GetMaxHealthAttribute());
-			Value = FMath::Clamp(Value, 0.f, FMath::Max(CurrentMax, 1.f));
-		}
-		else
-		{
-			const FString TagStr = Tag.ToString();
-			if (TagStr.StartsWith(TEXT("Attributes.Vital.")) || TagStr.StartsWith(TEXT("Attributes.Culture.")) || TagStr.StartsWith(TEXT("Attributes.Knowledge.")) || TagStr.StartsWith(TEXT("Attributes.Worldline.")))
-			{
-				Value = Clamp01_100(Value);
-			}
-		}
+	const FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(CharacterClassInfo->PrimaryAttributes_SetByCaller, 1.f, EffectContexthandle);
 
-		ASC->SetNumericAttributeBase(Attribute, Value);
-	}
+	// Primary Attributes
+	UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(SpecHandle, GameplayTags.Attributes_Primary_Strength, SaveGame->Strength);
+	UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(SpecHandle, GameplayTags.Attributes_Primary_Intelligence, SaveGame->Intelligence);
+	UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(SpecHandle, GameplayTags.Attributes_Primary_Endurance, SaveGame->Endurance);
+	UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(SpecHandle, GameplayTags.Attributes_Primary_Willpower, SaveGame->Willpower);
+	UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(SpecHandle, GameplayTags.Attributes_Primary_Social, SaveGame->Social);
+	
+	ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data);
 
-	// Final safety: health <= max health
-	const float FinalMax = FMath::Max(ASC->GetNumericAttribute(UStoneAttributeSet::GetMaxHealthAttribute()), 1.f);
-	const float FinalHealth = FMath::Clamp(ASC->GetNumericAttribute(UStoneAttributeSet::GetHealthAttribute()), 0.f, FinalMax);
-	ASC->SetNumericAttributeBase(UStoneAttributeSet::GetHealthAttribute(), FinalHealth);
+	FGameplayEffectContextHandle SecondaryAttributesContextHandle = ASC->MakeEffectContext();
+	SecondaryAttributesContextHandle.AddSourceObject(SourceAvatarActor);
+	const FGameplayEffectSpecHandle SecondaryAttributesSpecHandle = ASC->MakeOutgoingSpec(CharacterClassInfo->SecondaryAttributes_Infinite, 1.f, SecondaryAttributesContextHandle);
+	ASC->ApplyGameplayEffectSpecToSelf(*SecondaryAttributesSpecHandle.Data.Get());
+
+	FGameplayEffectContextHandle VitalAttributesContextHandle = ASC->MakeEffectContext();
+	VitalAttributesContextHandle.AddSourceObject(SourceAvatarActor);
+	const FGameplayEffectSpecHandle VitalAttributesSpecHandle = ASC->MakeOutgoingSpec(CharacterClassInfo->VitalAttributes, 1.f, VitalAttributesContextHandle);
+	ASC->ApplyGameplayEffectSpecToSelf(*VitalAttributesSpecHandle.Data.Get());
+	
+	FGameplayEffectContextHandle CultureContext = ASC->MakeEffectContext();
+	CultureContext.AddSourceObject(SourceAvatarActor);
+	const FGameplayEffectSpecHandle CultureSpec =
+		ASC->MakeOutgoingSpec(CharacterClassInfo->CultureAttributes, 1.f, CultureContext);
+	ASC->ApplyGameplayEffectSpecToSelf(*CultureSpec.Data.Get());
+
+	FGameplayEffectContextHandle WorldlineContext = ASC->MakeEffectContext();
+	WorldlineContext.AddSourceObject(SourceAvatarActor);
+	const FGameplayEffectSpecHandle WorldlineSpec =
+		ASC->MakeOutgoingSpec(CharacterClassInfo->WorldlineAttributes, 1.f, WorldlineContext);
+	ASC->ApplyGameplayEffectSpecToSelf(*WorldlineSpec.Data.Get());
+}
+
+void UStoneAbilitySystemLibrary::GiveStartupAbilities(const UObject* WorldContextObject, UAbilitySystemComponent* ASC,
+	EStoneCharacterClass CharacterClass)
+{
+	// Stone: no GameplayAbilities currently.
+}
+
+UStoneCharacterClassInfo* UStoneAbilitySystemLibrary::GetCharacterClassInfo(const UObject* WorldContextObject)
+{
+	const AStoneGameMode* StoneGameMode = Cast<AStoneGameMode>(UGameplayStatics::GetGameMode(WorldContextObject));
+	if (StoneGameMode == nullptr) return nullptr;
+	return StoneGameMode->CharacterClassInfo;
 }
 
 UAbilityInfo* UStoneAbilitySystemLibrary::GetAbilityInfo(const UObject* WorldContextObject)
 {
-	if (!WorldContextObject) return nullptr;
-
-	AGameModeBase* GM = UGameplayStatics::GetGameMode(WorldContextObject);
-	AStoneGameMode* StoneGM = Cast<AStoneGameMode>(GM);
-	return StoneGM ? StoneGM->AbilityInfo : nullptr;
+	const AStoneGameMode* StoneGameMode = Cast<AStoneGameMode>(UGameplayStatics::GetGameMode(WorldContextObject));
+	if (StoneGameMode == nullptr) return nullptr;
+	return StoneGameMode->AbilityInfo;
 }
+
+bool UStoneAbilitySystemLibrary::IsSuccessfulDebuff(const FGameplayEffectContextHandle& EffectContextHandle)
+{
+	if (const FStoneGameplayEffectContext* StoneEffectContext = static_cast<const FStoneGameplayEffectContext*>(EffectContextHandle.Get()))
+	{
+		return StoneEffectContext->IsSuccessfulDebuff();
+	}
+	return false;
+}
+
+float UStoneAbilitySystemLibrary::GetDebuffDamage(const FGameplayEffectContextHandle& EffectContextHandle)
+{
+	if (const FStoneGameplayEffectContext* StoneEffectContext = static_cast<const FStoneGameplayEffectContext*>(EffectContextHandle.Get()))
+	{
+		return StoneEffectContext->GetDebuffDamage();
+	}
+	return 0.f;
+}
+
+float UStoneAbilitySystemLibrary::GetDebuffDuration(const FGameplayEffectContextHandle& EffectContextHandle)
+{
+	if (const FStoneGameplayEffectContext* StoneEffectContext = static_cast<const FStoneGameplayEffectContext*>(EffectContextHandle.Get()))
+	{
+		return StoneEffectContext->GetDebuffDuration();
+	}
+	return 0.f;
+}
+
+float UStoneAbilitySystemLibrary::GetDebuffFrequency(const FGameplayEffectContextHandle& EffectContextHandle)
+{
+	if (const FStoneGameplayEffectContext* StoneEffectContext = static_cast<const FStoneGameplayEffectContext*>(EffectContextHandle.Get()))
+	{
+		return StoneEffectContext->GetDebuffFrequency();
+	}
+	return 0.f;
+}
+
+void UStoneAbilitySystemLibrary::SetIsSuccessfulDebuff(FGameplayEffectContextHandle& EffectContextHandle,
+	bool bInSuccessfulDebuff)
+{
+	if (FStoneGameplayEffectContext* StoneEffectContext = static_cast<FStoneGameplayEffectContext*>(EffectContextHandle.Get()))
+	{
+		StoneEffectContext->SetIsSuccessfulDebuff(bInSuccessfulDebuff);
+	}
+}
+
+void UStoneAbilitySystemLibrary::SetDebuffDamage(FGameplayEffectContextHandle& EffectContextHandle, float InDamage)
+{
+	if (FStoneGameplayEffectContext* StoneEffectContext = static_cast<FStoneGameplayEffectContext*>(EffectContextHandle.Get()))
+	{
+		StoneEffectContext->SetDebuffDamage(InDamage);
+	}
+}
+
+void UStoneAbilitySystemLibrary::SetDebuffDuration(FGameplayEffectContextHandle& EffectContextHandle, float InDuration)
+{
+	if (FStoneGameplayEffectContext* StoneEffectContext = static_cast<FStoneGameplayEffectContext*>(EffectContextHandle.Get()))
+	{
+		StoneEffectContext->SetDebuffDuration(InDuration);
+	}
+}
+
+void UStoneAbilitySystemLibrary::SetDebuffFrequency(FGameplayEffectContextHandle& EffectContextHandle,
+	float InFrequency)
+{
+	if (FStoneGameplayEffectContext* StoneEffectContext = static_cast<FStoneGameplayEffectContext*>(EffectContextHandle.Get()))
+	{
+		StoneEffectContext->SetDebuffFrequency(InFrequency);
+	}
+}
+

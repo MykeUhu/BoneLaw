@@ -57,8 +57,4 @@ public:
 protected:
 	virtual void NativePreConstruct() override;
 	virtual void NativeConstruct() override;
-	
-	/** Optional BP hook */
-	UFUNCTION(BlueprintImplementableEvent, Category="Stone|UI")
-	void BP_OnWidgetControllerSet();
 };

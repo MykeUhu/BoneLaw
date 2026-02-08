@@ -12,7 +12,6 @@
 #include "Game/StoneWorldlineDirector.h"
 #include "Game/StoneWorldlineWeightPolicy.h"
 #include "Game/Events/StoneEventResolver.h"
-#include "Game/Save/StoneSaveGame.h"
 #include "Library/StoneEventLibrary.h"
 #include "Library/StonePackLibrary.h"
 
@@ -304,29 +303,19 @@ void UStoneRunSubsystem::TickExpedition()
 
 void UStoneRunSubsystem::SetAttrByStableName(const FName& StableName, float Value) const
 {
-	UAbilitySystemComponent* ASC = GetASC();
-	if (!ASC) return;
-
-	// Use TagsToAttributes map from AttributeSet for StableName lookup (save/load compatibility)
-	const UStoneAttributeSet* AttrSet = ASC->GetSet<UStoneAttributeSet>();
-	if (!AttrSet) return;
-
-	const FStoneGameplayTags& Tags = FStoneGameplayTags::Get();
-	for (const auto& KV : AttrSet->TagsToAttributes)
+	if (StableName.IsNone())
 	{
-		// Compare StableName against the tag's leaf name
-		if (KV.Key.GetTagName().ToString().EndsWith(StableName.ToString()))
-		{
-			const FGameplayAttribute Attr = KV.Value();
-			if (Attr.IsValid())
-			{
-				ASC->SetNumericAttributeBase(Attr, Value);
-			}
-			return;
-		}
+		return;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] SetAttrByStableName: no attribute found for '%s'"), *StableName.ToString());
+	if (UAbilitySystemComponent* ASC = GetASC())
+	{
+		// We accept both leaf names ("Health") and fully qualified tag names ("Attributes.Vital.Health").
+		TMap<FName, float> Temp;
+		Temp.Add(StableName, Value);
+		// Outdated
+		// UStoneAbilitySystemLibrary::ApplyAttributeMapToASC(ASC, Temp);
+	}
 }
 
 void UStoneRunSubsystem::GetResolvedChoices(TArray<FStoneChoiceResolved>& OutResolved) const
@@ -657,14 +646,13 @@ void UStoneRunSubsystem::StartNewRun(const FStoneRunConfig& Config)
 	UAbilitySystemComponent* ASC = GetASC();
 	check(ASC);
 
-	// Apply starting attributes deterministically by StableName (registry resolves to FGameplayAttribute)
-	for (const auto& KV : Config.StartingAttributeValues)
-	{
-		SetAttrByStableName(KV.Key, KV.Value);
-	}
-
 	// Initial day tags
 	ApplyDayNightTags(false);
+
+	// Apply starting attributes (Aura pattern: StableName -> Value) if provided.
+	if (Config.StartingAttributeValues.Num() > 0)
+	{
+	}
 
 	// Scheduler reset
 	Scheduler->Reset(Time);
@@ -678,105 +666,6 @@ void UStoneRunSubsystem::StartNewRun(const FStoneRunConfig& Config)
 	RebuildSnapshot();
 	BroadcastSnapshot();
 }
-
-void UStoneRunSubsystem::LoadRun(const UStoneSaveGame* Save)
-{
-	if (!Save) return;
-
-	if (!EnsurePlayerStateCache())
-	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] LoadRun failed: Could not find PlayerState with GAS."));
-		return;
-	}
-
-	Scheduler = NewObject<UStoneScheduler>(this);
-	Resolver = NewObject<UStoneEventResolver>(this);
-	OutcomeExecutor = NewObject<UStoneOutcomeExecutor>(this);
-
-	EnsurePackLibrary(true);
-	EnsureEventLibrary(true);
-
-	Time = Save->Time;
-	RunTags = Save->RunTags;
-	FocusTag = Save->FocusTag;
-
-	// Restore packs & rebuild pool from packs (SSOT). Fallback to EventPoolIds if packs weren't saved.
-	ActivePackIds = Save->ActivePackIds;
-	TemporaryPackIds.Reset();
-
-	if (ActivePackIds.Num() > 0)
-	{
-		RebuildEventPoolFromActivePacks(/*bPreloadIfPackRequests*/ true);
-	}
-	else
-	{
-		EventPoolIds = Save->EventPoolIds;
-	}
-
-	RNG.Initialize(Save->RNGSeed);
-
-	Scheduler->Reset(Time);
-	for (const auto& Ev : Save->ScheduledQueue)
-	{
-		Scheduler->Enqueue(Ev, Time);
-	}
-
-	// Restore attributes deterministically by StableName
-	for (const auto& KV : Save->AttributeValues)
-	{
-		SetAttrByStableName(KV.Key, KV.Value);
-	}
-
-	CurrentEvent = LoadEventById(Save->CurrentEventId);
-
-	RebuildSnapshot();
-	OnEventChanged.Broadcast(CurrentEvent);
-	BroadcastSnapshot();
-}
-
-
-UStoneSaveGame* UStoneRunSubsystem::CreateSave() const
-{
-	UStoneSaveGame* Save = NewObject<UStoneSaveGame>();
-	Save->Time = Time;
-	Save->RunTags = RunTags;
-	Save->FocusTag = FocusTag;
-	Save->CurrentEventId = CurrentEvent ? CurrentEvent->EventId : NAME_None;
-	Save->EventPoolIds = EventPoolIds;
-	Save->ActivePackIds = ActivePackIds; // SSOT: packs are the source of the pool
-	Save->RNGSeed = RNG.GetInitialSeed();
-	Save->ScheduledQueue = Scheduler ? Scheduler->GetQueue() : TArray<FStoneScheduledEvent>{};
-
-	// Runtime-only action data should NOT be persisted (travel/expedition timers etc.)
-	// Temporary packs must never be saved.
-	// Pending ambient events are also not persisted for now (demo rule).
-
-	// Save all attributes via TagsToAttributes (Aura pattern - no Registry needed)
-	if (UAbilitySystemComponent* ASC = GetASC())
-	{
-		if (const UStoneAttributeSet* AttrSet = ASC->GetSet<UStoneAttributeSet>())
-		{
-			for (const auto& KV : AttrSet->TagsToAttributes)
-			{
-				const FGameplayAttribute Attr = KV.Value();
-				if (Attr.IsValid())
-				{
-					// Use the tag's leaf name as StableName for save compatibility
-					const FString TagStr = KV.Key.GetTagName().ToString();
-					FString LeafName;
-					TagStr.Split(TEXT("."), nullptr, &LeafName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
-					if (!LeafName.IsEmpty())
-					{
-						Save->AttributeValues.Add(FName(*LeafName), ASC->GetNumericAttribute(Attr));
-					}
-				}
-			}
-		}
-	}
-
-	return Save;
-}
-
 
 void UStoneRunSubsystem::SetFocus(FGameplayTag InFocusTag)
 {

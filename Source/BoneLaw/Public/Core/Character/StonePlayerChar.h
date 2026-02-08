@@ -19,10 +19,16 @@ public:
 
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
-
-protected:
-	virtual void InitAbilityActorInfo() override;
-
+	
+	// Interface
+	virtual AActor* GetAvatar_Implementation() override;
+	virtual EStoneCharacterClass GetCharacterClass_Implementation() override;
+	virtual FOnASCRegistered& GetOnASCRegisteredDelegate() override;
+	
+	virtual void SaveProgress_Implementation(const FName& CheckpointTag) override;
+	// end Interface
+	
 private:
-	void InitAbilityActorInfoFromPlayerState();
+	void LoadProgress();
+	virtual void InitAbilityActorInfo() override;
 };

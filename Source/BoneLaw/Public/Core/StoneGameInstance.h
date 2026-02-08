@@ -24,4 +24,17 @@ public:
 	UStoneUIThemeDataAsset* GetUITheme() const { return DefaultUITheme; }
 
 	virtual void Init() override;
+	
+	UPROPERTY()
+	FName PlayerStartTag = FName();
+
+	UPROPERTY()
+	FString LoadSlotName = FString();
+
+	UPROPERTY()
+	int32 LoadSlotIndex = 0;
+	
+private:
+	FString GetRunSlotName() const { return TEXT("StoneRun_Current"); }
+	int32 GetRunUserIndex() const { return 0; }
 };

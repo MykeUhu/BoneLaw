@@ -8,12 +8,17 @@
 
 void UStoneOverlayWidgetController::BroadcastInitialValues()
 {
-	UStoneRunSubsystem* RunSS = GetRunSubsystem();
-	if (!RunSS) return;
+	// RunSubsystem: optional
+	if (UStoneRunSubsystem* RunSS = GetRunSubsystem())
+	{
+		HandleSnapshotChanged(RunSS->GetSnapshot());
+		HandleEventChanged(RunSS->GetCurrentEvent());
+	}
 
-	HandleSnapshotChanged(RunSS->GetSnapshot());
-	HandleEventChanged(RunSS->GetCurrentEvent());
-	
+	// GAS: immer (Aura pattern)
+	check(AbilitySystemComponent);
+	check(GetStoneAS());
+
 	OnHealthChanged.Broadcast(GetStoneAS()->GetHealth());
 	OnMaxHealthChanged.Broadcast(GetStoneAS()->GetMaxHealth());
 
@@ -24,7 +29,6 @@ void UStoneOverlayWidgetController::BroadcastInitialValues()
 	OnMaxWaterChanged.Broadcast(GetStoneAS()->GetMaxWater());
 
 	OnWarmthChanged.Broadcast(GetStoneAS()->GetWarmth());
-	OnMaxWarmthChanged.Broadcast(GetStoneAS()->GetMaxWarmth());
 
 	OnMoraleChanged.Broadcast(GetStoneAS()->GetMorale());
 	OnMaxMoraleChanged.Broadcast(GetStoneAS()->GetMaxMorale());
@@ -35,33 +39,25 @@ void UStoneOverlayWidgetController::BroadcastInitialValues()
 
 void UStoneOverlayWidgetController::BindCallbacksToDependencies()
 {
-	UStoneRunSubsystem* RunSS = GetRunSubsystem();
-	if (!RunSS) return;
+	// RunSubsystem: optional
+	if (UStoneRunSubsystem* RunSS = GetRunSubsystem())
+	{
+		RunSS->OnSnapshotChanged.RemoveDynamic(this, &UStoneOverlayWidgetController::HandleSnapshotChanged);
+		RunSS->OnSnapshotChanged.AddDynamic(this, &UStoneOverlayWidgetController::HandleSnapshotChanged);
 
-	RunSS->OnSnapshotChanged.RemoveDynamic(this, &UStoneOverlayWidgetController::HandleSnapshotChanged);
-	RunSS->OnSnapshotChanged.AddDynamic(this, &UStoneOverlayWidgetController::HandleSnapshotChanged);
+		RunSS->OnEventChanged.RemoveDynamic(this, &UStoneOverlayWidgetController::HandleEventChanged);
+		RunSS->OnEventChanged.AddDynamic(this, &UStoneOverlayWidgetController::HandleEventChanged);
+	}
 
-	RunSS->OnEventChanged.RemoveDynamic(this, &UStoneOverlayWidgetController::HandleEventChanged);
-	RunSS->OnEventChanged.AddDynamic(this, &UStoneOverlayWidgetController::HandleEventChanged);
-	
-	// Attributes
+	// GAS: immer (Aura pattern)
 	check(AbilitySystemComponent);
 	check(GetStoneAS());
 
-	// --- Health ---
-	AbilitySystemComponent
-		->GetGameplayAttributeValueChangeDelegate(GetStoneAS()->GetHealthAttribute())
-		.AddLambda([this](const FOnAttributeChangeData& Data)
-		{
-			OnHealthChanged.Broadcast(Data.NewValue);
-		});
+	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(GetStoneAS()->GetHealthAttribute())
+		.AddLambda([this](const FOnAttributeChangeData& Data){ OnHealthChanged.Broadcast(Data.NewValue); });
 
-	AbilitySystemComponent
-		->GetGameplayAttributeValueChangeDelegate(GetStoneAS()->GetMaxHealthAttribute())
-		.AddLambda([this](const FOnAttributeChangeData& Data)
-		{
-			OnMaxHealthChanged.Broadcast(Data.NewValue);
-		});
+	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(GetStoneAS()->GetMaxHealthAttribute())
+		.AddLambda([this](const FOnAttributeChangeData& Data){ OnMaxHealthChanged.Broadcast(Data.NewValue); });
 
 	// --- Food ---
 	AbilitySystemComponent
@@ -99,13 +95,6 @@ void UStoneOverlayWidgetController::BindCallbacksToDependencies()
 		.AddLambda([this](const FOnAttributeChangeData& Data)
 		{
 			OnWarmthChanged.Broadcast(Data.NewValue);
-		});
-
-	AbilitySystemComponent
-		->GetGameplayAttributeValueChangeDelegate(GetStoneAS()->GetMaxWarmthAttribute())
-		.AddLambda([this](const FOnAttributeChangeData& Data)
-		{
-			OnMaxWarmthChanged.Broadcast(Data.NewValue);
 		});
 
 	// --- Morale ---

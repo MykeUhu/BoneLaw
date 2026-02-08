@@ -29,13 +29,18 @@ void AStoneNPChar::InitAbilityActorInfo()
 {
 	if (!AbilitySystemComponent || !AttributeSet) return;
 
-	// NPC: owner=this, avatar=this
 	AbilitySystemComponent->InitAbilityActorInfo(this, this);
-	AbilitySystemComponent->AbilityActorInfoSet();
 
-	// Server applies, replicates out
+	// Aura style: register effect callback on the concrete ASC type
+	if (UStoneAbilitySystemComponent* StoneASC = Cast<UStoneAbilitySystemComponent>(AbilitySystemComponent))
+	{
+		StoneASC->AbilityActorInfoSet();
+		StoneASC->MarkStartupReady();
+	}
+
+	// Server applies defaults (replicates out)
 	InitializeDefaultAttributes();
-	AddCharacterAbilities();
 
-	BP_OnAbilitySystemInitialized();
+	// NO abilities in Stone.
 }
+

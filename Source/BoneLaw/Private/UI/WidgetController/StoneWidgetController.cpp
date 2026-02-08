@@ -8,7 +8,7 @@
 #include "AbilitySystem/StoneAbilitySystemComponent.h"
 #include "AbilitySystem/StoneAttributeSet.h"
 
-void UStoneWidgetController::SetWidgetControllerParams(const FStoneWidgetControllerParams& WCParams)
+void UStoneWidgetController::SetWidgetControllerParams(const FWidgetControllerParams& WCParams)
 {
 	PlayerController = WCParams.PlayerController;
 	PlayerState = WCParams.PlayerState;

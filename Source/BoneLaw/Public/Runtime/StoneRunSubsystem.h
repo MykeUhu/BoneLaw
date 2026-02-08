@@ -22,7 +22,6 @@ class UStoneEventData;
 class UStoneScheduler;
 class UStoneEventResolver;
 class UStoneOutcomeExecutor;
-class UStoneSaveGame;
 class AStonePlayerState;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneSnapshotChanged, const FStoneSnapshot&, Snapshot);
@@ -81,12 +80,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Stone|Run")
 	void StartNewRun(const FStoneRunConfig& Config);
 
-	UFUNCTION(BlueprintCallable, Category="Stone|Run")
-	void LoadRun(const UStoneSaveGame* Save);
-
-	UFUNCTION(BlueprintCallable, Category="Stone|Run")
-	UStoneSaveGame* CreateSave() const;
-
 	// === Gameplay ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Run")
 	void SetFocus(FGameplayTag InFocusTag);
@@ -106,8 +99,6 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category="Stone|Run")
 	FStoneEventChanged OnEventChanged;
-
-
 	
 	// === Simulation Speed (for real-time actions like expeditions) ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Sim")
@@ -134,7 +125,6 @@ public:
 	UFUNCTION(BlueprintPure, Category="Stone|Expedition")
 	float GetExpeditionProgress01() const;
 	
-
 	// === Travel Actions (real-time, phased: outbound -> arrival -> return) ===
 	// Travel is action-driven and player-facing:
 	// - Uses SimulationSpeed (0 = paused) to allow UI-driven pause.
