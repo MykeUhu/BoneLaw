@@ -16,12 +16,12 @@ class UStoneAbilitySystemComponent;
 class UStoneAttributeSet;
 
 USTRUCT(BlueprintType)
-struct FStoneWidgetControllerParams
+struct FWidgetControllerParams
 {
 	GENERATED_BODY()
 
-	FStoneWidgetControllerParams() {}
-	FStoneWidgetControllerParams(APlayerController* PC, APlayerState* PS, UAbilitySystemComponent* ASC, UAttributeSet* AS)
+	FWidgetControllerParams() {}
+	FWidgetControllerParams(APlayerController* PC, APlayerState* PS, UAbilitySystemComponent* ASC, UAttributeSet* AS)
 		: PlayerController(PC), PlayerState(PS), AbilitySystemComponent(ASC), AttributeSet(AS) {}
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -48,7 +48,7 @@ class BONELAW_API UStoneWidgetController : public UObject
 
 public:
 	UFUNCTION(BlueprintCallable)
-	void SetWidgetControllerParams(const FStoneWidgetControllerParams& WCParams);
+	void SetWidgetControllerParams(const FWidgetControllerParams& WCParams);
 
 	UFUNCTION(BlueprintCallable)
 	virtual void BroadcastInitialValues();

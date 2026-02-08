@@ -2,6 +2,7 @@
 
 
 #include "Core/StoneGameInstance.h"
+
 #include "UI/CustomElements/StoneUIThemeDataAsset.h"
 
 void UStoneGameInstance::Init()
@@ -20,3 +21,4 @@ void UStoneGameInstance::Init()
 			*GetNameSafe(DefaultUITheme));
 	}
 }
+

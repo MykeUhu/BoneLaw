@@ -3,17 +3,20 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayEffectTypes.h"
+#include "GameplayTagContainer.h"
+#include "Data/StoneCharacterClassInfo.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "StoneAbilitySystemLibrary.generated.h"
 
 class UAbilitySystemComponent;
-class UStoneSaveGame;
+class ULoadScreenSaveGame;
 class UAbilityInfo;
 class ULoadScreenSaveGame;
 
 class AStoneHUD;
 class UStoneOverlayWidgetController;
-struct FStoneWidgetControllerParams;
+struct FWidgetControllerParams;
 
 /**
  * BoneLaw GAS helper library.
@@ -27,23 +30,75 @@ class BONELAW_API UStoneAbilitySystemLibrary : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
-	// -----------------------------
-	// Widget Controller
-	// -----------------------------
+	/*
+	 * Widget Controller
+	 */
 
-	UFUNCTION(BlueprintPure, Category="Stone|AbilitySystem|WidgetController", meta=(DefaultToSelf="WorldContextObject"))
-	static bool MakeWidgetControllerParams(const UObject* WorldContextObject, FStoneWidgetControllerParams& OutParams, AStoneHUD*& OutStoneHUD);
-
-	UFUNCTION(BlueprintPure, Category="Stone|AbilitySystem|WidgetController", meta=(DefaultToSelf="WorldContextObject"))
+	UFUNCTION(BlueprintPure, Category="StoneAbilitySystemLibrary|WidgetController", meta = (DefaultToSelf = "WorldContextObject"))
+	static bool MakeWidgetControllerParams(const UObject* WorldContextObject, FWidgetControllerParams& OutWCParams, AStoneHUD*& OutStoneHUD);
+	
+	UFUNCTION(BlueprintPure, Category="StoneAbilitySystemLibrary|WidgetController", meta = (DefaultToSelf = "WorldContextObject"))
 	static UStoneOverlayWidgetController* GetOverlayWidgetController(const UObject* WorldContextObject);
 
-	// -----------------------------
-	// Defaults / Save init
-	// -----------------------------
+	/* for later
+	UFUNCTION(BlueprintPure, Category="StoneAbilitySystemLibrary|WidgetController", meta = (DefaultToSelf = "WorldContextObject"))
+	static UAttributeMenuWidgetController* GetAttributeMenuWidgetController(const UObject* WorldContextObject);
 
-	UFUNCTION(BlueprintCallable, Category="Stone|AbilitySystem|Defaults", meta=(DefaultToSelf="WorldContextObject"))
-	static void InitializeDefaultAttributesFromSaveData(const UObject* WorldContextObject, UAbilitySystemComponent* ASC, UStoneSaveGame* SaveGame);
+	UFUNCTION(BlueprintPure, Category="StoneAbilitySystemLibrary|WidgetController", meta = (DefaultToSelf = "WorldContextObject"))
+	static USpellMenuWidgetController* GetSpellMenuWidgetController(const UObject* WorldContextObject);
+	*/
+	
+	/*
+	 * Ability System Class Defaults
+	 */
 
-	UFUNCTION(BlueprintCallable, Category="Stone|AbilitySystem|Defaults", meta=(DefaultToSelf="WorldContextObject"))
+	UFUNCTION(BlueprintCallable, Category="StoneAbilitySystemLibrary|CharacterClassDefaults")
+	static void InitializeDefaultAttributes(const UObject* WorldContextObject, EStoneCharacterClass CharacterClass, float Level, UAbilitySystemComponent* ASC);
+
+	UFUNCTION(BlueprintCallable, Category="StoneAbilitySystemLibrary|CharacterClassDefaults")
+	static void InitializeDefaultAttributesFromSaveData(const UObject* WorldContextObject, UAbilitySystemComponent* ASC, ULoadScreenSaveGame* SaveGame);
+	
+	UFUNCTION(BlueprintCallable, Category="StoneAbilitySystemLibrary|CharacterClassDefaults")
+	static void GiveStartupAbilities(const UObject* WorldContextObject, UAbilitySystemComponent* ASC, EStoneCharacterClass CharacterClass);
+
+	UFUNCTION(BlueprintCallable, Category="StoneAbilitySystemLibrary|CharacterClassDefaults")
+	static UStoneCharacterClassInfo* GetCharacterClassInfo(const UObject* WorldContextObject);
+
+	UFUNCTION(BlueprintCallable, Category="StoneAbilitySystemLibrary|CharacterClassDefaults")
 	static UAbilityInfo* GetAbilityInfo(const UObject* WorldContextObject);
+	
+	/*
+	 * Effect Context Getters
+	 */
+	UFUNCTION(BlueprintPure, Category = "AuraAbilitySystemLibrary|GameplayEffects")
+	static bool IsSuccessfulDebuff(const FGameplayEffectContextHandle& EffectContextHandle);
+
+	UFUNCTION(BlueprintPure, Category = "AuraAbilitySystemLibrary|GameplayEffects")
+	static float GetDebuffDamage(const FGameplayEffectContextHandle& EffectContextHandle);
+
+	UFUNCTION(BlueprintPure, Category = "AuraAbilitySystemLibrary|GameplayEffects")
+	static float GetDebuffDuration(const FGameplayEffectContextHandle& EffectContextHandle);
+
+	UFUNCTION(BlueprintPure, Category = "AuraAbilitySystemLibrary|GameplayEffects")
+	static float GetDebuffFrequency(const FGameplayEffectContextHandle& EffectContextHandle);
+	
+	/*
+	 * Effect Context Setters
+	 */
+	UFUNCTION(BlueprintCallable, Category = "AuraAbilitySystemLibrary|GameplayEffects")
+	static void SetIsSuccessfulDebuff(UPARAM(ref) FGameplayEffectContextHandle& EffectContextHandle, bool bInSuccessfulDebuff);
+
+	UFUNCTION(BlueprintCallable, Category = "AuraAbilitySystemLibrary|GameplayEffects")
+	static void SetDebuffDamage(UPARAM(ref) FGameplayEffectContextHandle& EffectContextHandle, float InDamage);
+
+	UFUNCTION(BlueprintCallable, Category = "AuraAbilitySystemLibrary|GameplayEffects")
+	static void SetDebuffDuration(UPARAM(ref) FGameplayEffectContextHandle& EffectContextHandle, float InDuration);
+
+	UFUNCTION(BlueprintCallable, Category = "AuraAbilitySystemLibrary|GameplayEffects")
+	static void SetDebuffFrequency(UPARAM(ref) FGameplayEffectContextHandle& EffectContextHandle, float InFrequency);
+
+	/*
+	 * Gameplay Mechanics
+	 */
+	
 };

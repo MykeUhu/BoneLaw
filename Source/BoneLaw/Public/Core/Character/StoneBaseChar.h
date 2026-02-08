@@ -3,6 +3,8 @@
 
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
+#include "Core/Interaction/PlayerInterface.h"
+#include "Data/StoneCharacterClassInfo.h"
 #include "GameFramework/Character.h"
 #include "StoneBaseChar.generated.h"
 
@@ -18,33 +20,39 @@ class UStoneAttributeSet;
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnASCRegistered, UAbilitySystemComponent*);
 
 UCLASS(Abstract)
-class BONELAW_API AStoneBaseChar : public ACharacter, public IAbilitySystemInterface
+class BONELAW_API AStoneBaseChar : public ACharacter, public IAbilitySystemInterface, public IPlayerInterface
 {
 	GENERATED_BODY()
 
 public:
 	AStoneBaseChar();
-
-	// IAbilitySystemInterface
+	
+	virtual void Tick(float DeltaTime) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const;
+	
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+	UAttributeSet* GetAttributeSet() const { return AttributeSet; }
 
-	UStoneAbilitySystemComponent* GetStoneASC() const { return AbilitySystemComponent; }
-	UStoneAttributeSet* GetStoneAttributeSet() const { return AttributeSet; }
-
-	// Aura pattern: Delegate for when ASC is ready (used by Debuff components, etc.)
+	// Interface
+	virtual AActor* GetAvatar_Implementation() override;
+	virtual EStoneCharacterClass GetCharacterClass_Implementation() override;
+	virtual FOnASCRegistered& GetOnASCRegisteredDelegate() override;
+	// end Interface
+	
 	FOnASCRegistered OnAscRegistered;
+	
+	void SetCharacterClass(EStoneCharacterClass InClass) { CharacterClass = InClass; }
 
 protected:
-	/**
-	 * Aura-Pattern:
-	 * - PlayerChar: ASC/AS live on PlayerState -> init in PossessedBy + OnRep_PlayerState
-	 * - NPChar: ASC/AS live on the actor -> init in BeginPlay (or PostInitializeComponents)
-	 */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="GAS")
-	TObjectPtr<UStoneAbilitySystemComponent> AbilitySystemComponent = nullptr;
+	UPROPERTY()
+	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="GAS")
-	TObjectPtr<UStoneAttributeSet> AttributeSet = nullptr;
+	UPROPERTY()
+	TObjectPtr<UAttributeSet> AttributeSet;
+
+	virtual void InitAbilityActorInfo();
+
+	virtual void BeginPlay() override;
 
 	// -------- Default Attribute GEs (asset-driven, Aura style) --------
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS|Defaults")
@@ -65,29 +73,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS|Defaults")
 	TSubclassOf<UGameplayEffect> DefaultWorldlineAttributes;
 
-	// -------- Startup Abilities (optional now, Aura style) --------
-	UPROPERTY(EditDefaultsOnly, Category="GAS|Abilities")
-	TArray<TSubclassOf<UGameplayAbility>> StartupAbilities;
-
-	UPROPERTY(EditDefaultsOnly, Category="GAS|Abilities")
-	TArray<TSubclassOf<UGameplayAbility>> StartupPassiveAbilities;
-
-	/**
-	 * Aura leaves this abstract/empty in base and implements in Player/Enemy.
-	 * We do the same: derived classes MUST call InitAbilityActorInfo once they have ASC+AS.
-	 */
-	virtual void InitAbilityActorInfo();
-
-	// Aura helper
 	void ApplyEffectToSelf(TSubclassOf<UGameplayEffect> EffectClass, float Level = 1.f) const;
+	virtual void InitializeDefaultAttributes() const;
 
-	// Aura InitializeDefaultAttributes()
-	virtual void InitializeDefaultAttributes();
-
-	// Aura AddCharacterAbilities()
-	virtual void AddCharacterAbilities();
-
-	// Optional BP hook (safe extension point; Aura does HUD init here in C++)
-	UFUNCTION(BlueprintImplementableEvent, Category="GAS")
-	void BP_OnAbilitySystemInitialized();
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Character Class Defaults")
+	EStoneCharacterClass CharacterClass = EStoneCharacterClass::Scout;
 };

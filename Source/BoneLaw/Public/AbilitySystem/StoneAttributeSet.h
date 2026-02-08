@@ -117,13 +117,31 @@ public:
 	FGameplayAttributeData InjuryResistance;
 	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, InjuryResistance);
 	
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxHealth, Category="Vital")
+	FGameplayAttributeData MaxHealth;
+	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, MaxHealth)
+			
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxFood, Category="Vital")
+	FGameplayAttributeData MaxFood;
+	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, MaxFood)
+	
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxWater, Category="Vital")
+	FGameplayAttributeData MaxWater;
+	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, MaxWater)
+		
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxMorale, Category="Vital")
+	FGameplayAttributeData MaxMorale;
+	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, MaxMorale)
+	
+	// no need of maxwarmth
+	
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxTrust, Category="Vital")
+	FGameplayAttributeData MaxTrust;
+	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, MaxTrust)
+	
 	/*
 	 * Vital Attributes
-	 */
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_HealthRegeneration, Category="Vital")
-	FGameplayAttributeData HealthRegeneration;
-	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, HealthRegeneration)
-
+	 */		
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_Health, Category="Vital")
 	FGameplayAttributeData Health;
 	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, Health)
@@ -139,7 +157,7 @@ public:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_Warmth, Category="Vital")
 	FGameplayAttributeData Warmth;
 	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, Warmth)
-
+	
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_Morale, Category="Vital")
 	FGameplayAttributeData Morale;
 	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, Morale)
@@ -147,30 +165,6 @@ public:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_Trust, Category="Vital")
 	FGameplayAttributeData Trust;
 	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, Trust)
-
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxHealth, Category="Vital")
-	FGameplayAttributeData MaxHealth;
-	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, MaxHealth)
-	
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxFood, Category="Vital")
-	FGameplayAttributeData MaxFood;
-	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, MaxFood)
-
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxWater, Category="Vital")
-	FGameplayAttributeData MaxWater;
-	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, MaxWater)
-
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxWarmth, Category="Vital")
-	FGameplayAttributeData MaxWarmth;
-	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, MaxWarmth)
-
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxMorale, Category="Vital")
-	FGameplayAttributeData MaxMorale;
-	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, MaxMorale)
-
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxTrust, Category="Vital")
-	FGameplayAttributeData MaxTrust;
-	ATTRIBUTE_ACCESSORS(UStoneAttributeSet, MaxTrust)
 
 	/*
 	 * Culture Attributes (0..100, axis-like: 50 = neutral)
@@ -297,7 +291,13 @@ public:
 	UFUNCTION() void OnRep_CraftSpeed(const FGameplayAttributeData& OldCraftSpeed) const;
 	UFUNCTION() void OnRep_GatherEfficiency(const FGameplayAttributeData& OldGatherEfficiency) const;
 	UFUNCTION() void OnRep_InjuryResistance(const FGameplayAttributeData& OldInjuryResistance) const;
-
+	
+	UFUNCTION() void OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth) const;
+	UFUNCTION()	void OnRep_MaxFood(const FGameplayAttributeData& OldMaxFood) const;
+	UFUNCTION()	void OnRep_MaxWater(const FGameplayAttributeData& OldMaxWater) const;
+	// no need of maxwarmth
+	UFUNCTION()	void OnRep_MaxMorale(const FGameplayAttributeData& OldMaxMorale) const;
+	UFUNCTION()	void OnRep_MaxTrust(const FGameplayAttributeData& OldMaxTrust) const;
 
 	// Vital
 	UFUNCTION() void OnRep_Health(const FGameplayAttributeData& OldHealth) const;
@@ -306,14 +306,6 @@ public:
 	UFUNCTION() void OnRep_Warmth(const FGameplayAttributeData& OldWarmth) const;
 	UFUNCTION() void OnRep_Morale(const FGameplayAttributeData& OldMorale) const;
 	UFUNCTION() void OnRep_Trust(const FGameplayAttributeData& OldTrust) const;
-	UFUNCTION() void OnRep_HealthRegeneration(const FGameplayAttributeData& OldHealthRegeneration) const;
-
-	UFUNCTION() void OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth) const;
-	UFUNCTION()	void OnRep_MaxFood(const FGameplayAttributeData& OldMaxFood) const;
-	UFUNCTION()	void OnRep_MaxWater(const FGameplayAttributeData& OldMaxWater) const;
-	UFUNCTION()	void OnRep_MaxWarmth(const FGameplayAttributeData& OldMaxWarmth) const;
-	UFUNCTION()	void OnRep_MaxMorale(const FGameplayAttributeData& OldMaxMorale) const;
-	UFUNCTION()	void OnRep_MaxTrust(const FGameplayAttributeData& OldMaxTrust) const;
 
 	// Culture
 	UFUNCTION() void OnRep_CultureEmpathy(const FGameplayAttributeData& OldCultureEmpathy) const;
@@ -346,6 +338,4 @@ public:
 private:
 	void SetEffectProperties(const FGameplayEffectModCallbackData& Data, FEffectProperties& Props) const;
 	bool bTopOffHealth = false;
-
-	
 };

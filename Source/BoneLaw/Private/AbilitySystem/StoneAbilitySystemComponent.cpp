@@ -1,63 +1,31 @@
-﻿// StoneAbilitySystemComponent.cpp
-
-#include "AbilitySystem/StoneAbilitySystemComponent.h"
+﻿#include "AbilitySystem/StoneAbilitySystemComponent.h"
 
 #include "AbilitySystemBlueprintLibrary.h"
-#include "AbilitySystem/StoneGameplayAbility.h"
-#include "Core/StoneGameplayTags.h"
 
 void UStoneAbilitySystemComponent::AbilityActorInfoSet()
 {
 	OnGameplayEffectAppliedDelegateToSelf.AddUObject(this, &UStoneAbilitySystemComponent::ClientEffectApplied);
 }
 
-void UStoneAbilitySystemComponent::AddCharacterAbilities(const TArray<TSubclassOf<UGameplayAbility>>& InStartupAbilities)
+void UStoneAbilitySystemComponent::MarkStartupReady()
 {
-	for (const TSubclassOf<UGameplayAbility> AbilityClass : InStartupAbilities)
-	{
-		if (!AbilityClass) continue;
-
-		FGameplayAbilitySpec AbilitySpec(AbilityClass, 1);
-
-		if (const UStoneGameplayAbility* StoneAbility = Cast<UStoneGameplayAbility>(AbilitySpec.Ability))
-		{
-			AbilitySpec.GetDynamicSpecSourceTags().AddTag(StoneAbility->StartupInputTag);
-			AbilitySpec.GetDynamicSpecSourceTags().AddTag(FStoneGameplayTags::Get().Abilities_Status_Equipped);
-		}
-
-		GiveAbility(AbilitySpec);
-	}
-
-	bStartupAbilitiesGiven = true;
+	if (bStartupReady) return;
+	bStartupReady = true;
 	AbilitiesGivenDelegate.Broadcast();
-}
-
-void UStoneAbilitySystemComponent::AddCharacterPassiveAbilities(const TArray<TSubclassOf<UGameplayAbility>>& InStartupPassiveAbilities)
-{
-	for (const TSubclassOf<UGameplayAbility> AbilityClass : InStartupPassiveAbilities)
-	{
-		if (!AbilityClass) continue;
-
-		FGameplayAbilitySpec AbilitySpec(AbilityClass, 1);
-		AbilitySpec.GetDynamicSpecSourceTags().AddTag(FStoneGameplayTags::Get().Abilities_Status_Equipped);
-
-		GiveAbilityAndActivateOnce(AbilitySpec);
-	}
 }
 
 void UStoneAbilitySystemComponent::OnRep_ActivateAbilities()
 {
 	Super::OnRep_ActivateAbilities();
 
-	if (!bStartupAbilitiesGiven)
-	{
-		bStartupAbilitiesGiven = true;
-		AbilitiesGivenDelegate.Broadcast();
-	}
+	// Stone has no abilities, but we still need the Aura-style “ASC ready” pulse for UI.
+	MarkStartupReady();
 }
 
-void UStoneAbilitySystemComponent::ClientEffectApplied_Implementation(UAbilitySystemComponent* AbilitySystemComponent,
-	const FGameplayEffectSpec& EffectSpec, FActiveGameplayEffectHandle ActiveEffectHandle)
+void UStoneAbilitySystemComponent::ClientEffectApplied_Implementation(
+	UAbilitySystemComponent* AbilitySystemComponent,
+	const FGameplayEffectSpec& EffectSpec,
+	FActiveGameplayEffectHandle ActiveEffectHandle)
 {
 	FGameplayTagContainer TagContainer;
 	EffectSpec.GetAllAssetTags(TagContainer);

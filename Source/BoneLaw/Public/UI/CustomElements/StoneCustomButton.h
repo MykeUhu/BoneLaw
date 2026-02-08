@@ -34,8 +34,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Button")
 	void SetIsSelected(bool bInIsSelected);
 
-	UFUNCTION(BlueprintPure, Category="Button")
-	bool IsSelected() const { return bIsSelected; }
+	UFUNCTION(BlueprintPure, Category="Button", meta=(DisplayName="Is Selected"))
+	bool GetIsSelected() const { return bIsSelected; }
 
 	UFUNCTION(BlueprintCallable, Category="Button|Style")
 	void SetFontSize(float InFontSize);
