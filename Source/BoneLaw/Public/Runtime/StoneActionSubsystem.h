@@ -67,6 +67,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="Stone|Action")
 	bool IsPausedByGameState() const;
 
+	// Score-based action speed multiplier (100 score = 1.0)
+	UFUNCTION(BlueprintPure, Category="Stone|Action")
+	float GetCurrentActionSpeedMult() const;
+
 	// Delegates
 	UPROPERTY(BlueprintAssignable, Category="Stone|Action")
 	FStoneActionStateChanged OnActionStateChanged;
@@ -83,7 +87,9 @@ private:
 
 	void EnterPhase(EStoneActionPhase NewPhase);
 	void HandlePhaseAdvance();
-	void RollRandomTravelEvent();
+	void RollRandomLegEvent();
+	FGameplayTag GetLegRandomEventTag(EStoneActionPhase InPhase) const;
+	float ResolveActionSpeedMult() const;
 
 private:
 	FTimerHandle ActionTickHandle;
@@ -94,15 +100,15 @@ private:
 	bool bActionRunning = false;
 	EStoneActionPhase Phase = EStoneActionPhase::None;
 
-	// Timing
+	// Timing in BASE seconds (duration at SimulationSpeed=1 and ScoreMult=1)
 	float BaseDurationSeconds = 0.f;
 	float OutboundSeconds = 0.f;
 	float ReturnSeconds = 0.f;
-	float PhaseElapsedSeconds = 0.f;
-	float TotalElapsedSeconds = 0.f;
+	float PhaseElapsedBaseSeconds = 0.f;
+	float TotalElapsedBaseSeconds = 0.f;
 
-	// Random pacing
-	float NextRandomCountdownSeconds = 0.f;
+	// Random pacing in BASE seconds
+	float NextRandomCountdownBaseSeconds = 0.f;
 	float RandomMinGapSeconds = 30.f;
 	float RandomMaxGapSeconds = 90.f;
 	float RandomChance01 = 0.25f;

@@ -385,6 +385,7 @@ void UStoneEventPanelWidget::RefreshProgressVisual()
 		Progress01 = ActionSubsystem->GetActionProgress01();
 		Source = TEXT("Action");
 	}
+	/*
 	else if (Run->IsTravelActive())
 	{
 		Progress01 = Run->GetTravelProgress01();
@@ -395,6 +396,7 @@ void UStoneEventPanelWidget::RefreshProgressVisual()
 		Progress01 = Run->GetExpeditionProgress01();
 		Source = TEXT("Expedition");
 	}
+	*/
 
 	if (Progress01 < 0.f)
 	{

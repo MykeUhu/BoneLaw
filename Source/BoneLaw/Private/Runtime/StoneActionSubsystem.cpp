@@ -1,5 +1,8 @@
 ﻿#include "Runtime/StoneActionSubsystem.h"
 
+#include "AbilitySystemComponent.h"
+#include "AbilitySystem/StoneAttributeSet.h"
+
 #include "Engine/World.h"
 #include "TimerManager.h"
 
@@ -33,6 +36,79 @@ UStoneRunSubsystem* UStoneActionSubsystem::GetRun() const
 	return nullptr;
 }
 
+float UStoneActionSubsystem::ResolveActionSpeedMult() const
+{
+	// SSOT = Ability System (currently player only, later can be routed to an active unit).
+	const UStoneRunSubsystem* Run = GetRun();
+	if (!Run || !CurrentDef)
+	{
+		return 1.f;
+	}
+
+	UAbilitySystemComponent* ASC = Run->GetASC();
+	if (!ASC)
+	{
+		return 1.f;
+	}
+
+	float Score = 100.f;
+
+	switch (CurrentDef->ActionType)
+	{
+	case EStoneActionType::Travel:
+	case EStoneActionType::Explore:
+		Score = ASC->GetNumericAttribute(UStoneAttributeSet::GetTravelSpeedAttribute());
+		break;
+
+	case EStoneActionType::Gather:
+		Score = ASC->GetNumericAttribute(UStoneAttributeSet::GetGatherEfficiencyAttribute());
+		break;
+
+	case EStoneActionType::Custom:
+	default:
+		Score = 100.f;
+		break;
+	}
+
+	Score = FMath::Max(0.f, Score);
+	// Technical sanity clamp only. Design clamps belong in MMCs / score ranges.
+	return FMath::Clamp(Score / 100.f, 0.10f, 10.0f);
+}
+
+float UStoneActionSubsystem::GetCurrentActionSpeedMult() const
+{
+	return ResolveActionSpeedMult();
+}
+
+FGameplayTag UStoneActionSubsystem::GetLegRandomEventTag(EStoneActionPhase InPhase) const
+{
+	const FStoneGameplayTags& T = FStoneGameplayTags::Get();
+
+	if (!CurrentDef || (InPhase != EStoneActionPhase::Outbound && InPhase != EStoneActionPhase::Return))
+	{
+		return FGameplayTag();
+	}
+
+	switch (CurrentDef->ActionType)
+	{
+	case EStoneActionType::Explore:
+		return (InPhase == EStoneActionPhase::Outbound) ? T.Event_Explore : T.Event_ExploreReturn;
+
+	case EStoneActionType::Travel:
+		return (InPhase == EStoneActionPhase::Outbound) ? T.Event_Travel_Outbound : T.Event_Travel_Return;
+
+	case EStoneActionType::Gather:
+	case EStoneActionType::Custom:
+	default:
+		// Custom/Gather can opt into an explicit tag; otherwise travel tags are a safe fallback.
+		if (CurrentDef->ActionTag.IsValid())
+		{
+			return CurrentDef->ActionTag;
+		}
+		return (InPhase == EStoneActionPhase::Outbound) ? T.Event_Travel_Outbound : T.Event_Travel_Return;
+	}
+}
+
 bool UStoneActionSubsystem::StartAction(UStoneActionDefinitionData* ActionDef)
 {
 	if (!ActionDef)
@@ -43,6 +119,7 @@ bool UStoneActionSubsystem::StartAction(UStoneActionDefinitionData* ActionDef)
 
 	if (bActionRunning)
 	{
+		// Explicitly stop; do not stack actions.
 		StopCurrentAction(false);
 	}
 
@@ -51,18 +128,6 @@ bool UStoneActionSubsystem::StartAction(UStoneActionDefinitionData* ActionDef)
 	{
 		UE_LOG(LogTemp, Error, TEXT("[StoneActionSubsystem] StartAction: RunSubsystem missing"));
 		return false;
-	}
-
-	// Demo rule: do not stack real-time actions across systems.
-	if (Run->IsOnExpedition())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[StoneActionSubsystem] StartAction: stopping active expedition (no stacking actions)."));
-		Run->StopExpedition(/*bForceReturnEvent*/ false);
-	}
-	if (Run->IsTravelActive())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[StoneActionSubsystem] StartAction: stopping active travel action (no stacking actions)."));
-		Run->StopTravelAction(/*bForceReturnHomeEvent*/ false);
 	}
 
 	// Requirements check (optional)
@@ -108,20 +173,16 @@ bool UStoneActionSubsystem::StartAction(UStoneActionDefinitionData* ActionDef)
 
 	Run->AddStateTags(ActiveStateTags);
 
-	// -------------------------
-	// Cache timing (SSOT)
-	// -------------------------
+	// Cache timing (BASE seconds at speed=1)
 	BaseDurationSeconds = FMath::Max(1.f, ActionDef->BaseDurationSeconds);
 
-	// SSOT from the data asset: only enforce TECHNICAL validity (no gameplay-magic clamps).
-	const float TickMin = kActionTickInterval; // minimum meaningful interval for countdown/tick
-	RandomMinGapSeconds = FMath::Max(TickMin, ActionDef->RandomMinGapSeconds);
+	// Random pacing configuration (interpreted as BASE seconds)
+	RandomMinGapSeconds = FMath::Max(kActionTickInterval, ActionDef->RandomMinGapSeconds);
 	RandomMaxGapSeconds = FMath::Max(RandomMinGapSeconds, ActionDef->RandomMaxGapSeconds);
-
 	RandomChance01 = FMath::Clamp(ActionDef->RandomChance01, 0.f, 1.f);
 	bAllowImmediateRandom = ActionDef->bAllowImmediateRandom;
 
-	// Travel split
+	// Phase split
 	const float OutShare = FMath::Clamp(ActionDef->OutboundShare01, 0.f, 1.f);
 	const float RetShare = FMath::Clamp(ActionDef->ReturnShare01, 0.f, 1.f);
 	const float Sum = FMath::Max(KINDA_SMALL_NUMBER, OutShare + RetShare);
@@ -129,19 +190,19 @@ bool UStoneActionSubsystem::StartAction(UStoneActionDefinitionData* ActionDef)
 	OutboundSeconds = BaseDurationSeconds * (OutShare / Sum);
 	ReturnSeconds   = BaseDurationSeconds * (RetShare / Sum);
 
-	PhaseElapsedSeconds = 0.f;
-	TotalElapsedSeconds = 0.f;
+	PhaseElapsedBaseSeconds = 0.f;
+	TotalElapsedBaseSeconds = 0.f;
 
 	// Activate packs only while action runs
 	ApplyActionPacks();
 
 	EnterPhase(EStoneActionPhase::Outbound);
 
-	// First tick after phase set should not roll random
 	bSkipRandomThisTick = true;
 	bReturnHomeQueued = false;
 
-	NextRandomCountdownSeconds = bAllowImmediateRandom ? 0.f : RNG.FRandRange(RandomMinGapSeconds, RandomMaxGapSeconds);
+	NextRandomCountdownBaseSeconds =
+		bAllowImmediateRandom ? 0.f : RNG.FRandRange(RandomMinGapSeconds, RandomMaxGapSeconds);
 
 	// Start tick timer
 	if (UWorld* World = GetWorld())
@@ -150,10 +211,18 @@ bool UStoneActionSubsystem::StartAction(UStoneActionDefinitionData* ActionDef)
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneActionSubsystem] StartAction: World is null; cannot start ticking."));
+		UE_LOG(LogTemp, Error, TEXT("[StoneActionSubsystem] StartAction: World is null; cannot tick."));
 		StopCurrentAction(false);
 		return false;
 	}
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("[StoneActionSubsystem] StartAction: %s Type=%d Base=%.1fs Out=%.1fs Ret=%.1fs RandomGap=[%.1f..%.1f] Chance=%.2f Packs=%d"),
+		*GetNameSafe(ActionDef),
+		(int32)ActionDef->ActionType,
+		BaseDurationSeconds, OutboundSeconds, ReturnSeconds,
+		RandomMinGapSeconds, RandomMaxGapSeconds, RandomChance01,
+		ActionDef->PackIdsToActivate.Num());
 
 	OnActionStateChanged.Broadcast();
 	OnActionProgressChanged.Broadcast(GetActionProgress01());
@@ -167,10 +236,6 @@ void UStoneActionSubsystem::StopCurrentAction(bool bForceReturnHomeEvent)
 		return;
 	}
 
-	UE_LOG(LogTemp, Warning,
-		TEXT("[StoneActionSubsystem] StopCurrentAction: Phase=%d TotalElapsed=%.2f Base=%.2f ForceReturn=%s"),
-		(int32)Phase, TotalElapsedSeconds, BaseDurationSeconds, bForceReturnHomeEvent ? TEXT("true") : TEXT("false"));
-
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(ActionTickHandle);
@@ -178,21 +243,20 @@ void UStoneActionSubsystem::StopCurrentAction(bool bForceReturnHomeEvent)
 
 	UStoneRunSubsystem* Run = GetRun();
 
-	// Optional final event request (if you want return home event guaranteed)
+	// Optional final event request
 	if (bForceReturnHomeEvent && Run)
 	{
-		if (Run->HasOpenEvent())
+		if (Run->HasOpenEvent() || Run->GetPendingEventCount() > 0)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[StoneActionSubsystem] StopCurrentAction: return-home event requested but an event is already open; not queuing."));
+			UE_LOG(LogTemp, Warning, TEXT("[StoneActionSubsystem] StopCurrentAction: return-home requested but events are already pending/open; not queuing."));
 		}
 		else
 		{
 			const int32 PendingBefore = Run->GetPendingEventCount();
-			const FStoneGameplayTags& T = FStoneGameplayTags::Get();
-			Run->QueueEventByTag(T.Event_Travel_ReturnHome, /*bAutoPresent*/ true);
+			Run->QueueEventByTag(FStoneGameplayTags::Get().Event_Travel_ReturnHome, true);
 			const int32 PendingAfter = Run->GetPendingEventCount();
 			UE_LOG(LogTemp, Warning,
-				TEXT("[StoneActionSubsystem] StopCurrentAction: return-home queue attempt done. PendingEvents %d -> %d OpenEvent=%s"),
+				TEXT("[StoneActionSubsystem] StopCurrentAction: return-home queued. Pending %d -> %d Open=%s"),
 				PendingBefore, PendingAfter, Run->HasOpenEvent() ? TEXT("true") : TEXT("false"));
 		}
 	}
@@ -206,6 +270,10 @@ void UStoneActionSubsystem::StopCurrentAction(bool bForceReturnHomeEvent)
 
 	ClearActionPacks();
 
+	UE_LOG(LogTemp, Warning,
+		TEXT("[StoneActionSubsystem] StopCurrentAction: Done. Phase=%d ElapsedBase=%.2f/%.2f"),
+		(int32)Phase, TotalElapsedBaseSeconds, BaseDurationSeconds);
+
 	bActionRunning = false;
 	Phase = EStoneActionPhase::None;
 
@@ -213,9 +281,9 @@ void UStoneActionSubsystem::StopCurrentAction(bool bForceReturnHomeEvent)
 	BaseDurationSeconds = 0.f;
 	OutboundSeconds = 0.f;
 	ReturnSeconds = 0.f;
-	PhaseElapsedSeconds = 0.f;
-	TotalElapsedSeconds = 0.f;
-	NextRandomCountdownSeconds = 0.f;
+	PhaseElapsedBaseSeconds = 0.f;
+	TotalElapsedBaseSeconds = 0.f;
+	NextRandomCountdownBaseSeconds = 0.f;
 
 	OnActionStateChanged.Broadcast();
 	OnActionProgressChanged.Broadcast(0.f);
@@ -233,7 +301,7 @@ void UStoneActionSubsystem::ApplyActionPacks()
 
 	const int32 ActiveBefore = Run->GetActivePackIds().Num();
 	int32 Attempts = 0;
-	int32 ActivatedNow = 0;
+	int32 AddedNow = 0;
 
 	for (const FName& PackId : CurrentDef->PackIdsToActivate)
 	{
@@ -242,24 +310,25 @@ void UStoneActionSubsystem::ApplyActionPacks()
 			continue;
 		}
 		++Attempts;
-		const bool bAlreadyActive = Run->GetActivePackIds().Contains(PackId);
+
+		const bool bAlready = Run->GetActivePackIds().Contains(PackId);
 		Run->ActivatePackTemporary(PackId);
-		const bool bIsActiveAfter = Run->GetActivePackIds().Contains(PackId);
-		if (bIsActiveAfter)
+
+		if (Run->GetActivePackIds().Contains(PackId))
 		{
-			ActivatedNow += bAlreadyActive ? 0 : 1;
 			ActivatedPackIds.AddUnique(PackId);
+			AddedNow += bAlready ? 0 : 1;
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[StoneActionSubsystem] ApplyActionPacks: pack '%s' did not become active (see earlier errors)."), *PackId.ToString());
+			UE_LOG(LogTemp, Error, TEXT("[StoneActionSubsystem] ApplyActionPacks: Failed to activate temp pack '%s'."), *PackId.ToString());
 		}
 	}
 
 	const int32 ActiveAfter = Run->GetActivePackIds().Num();
 	UE_LOG(LogTemp, Warning,
 		TEXT("[StoneActionSubsystem] ApplyActionPacks: Attempts=%d AddedNow=%d ActivePacks %d -> %d"),
-		Attempts, ActivatedNow, ActiveBefore, ActiveAfter);
+		Attempts, AddedNow, ActiveBefore, ActiveAfter);
 }
 
 void UStoneActionSubsystem::ClearActionPacks()
@@ -271,7 +340,6 @@ void UStoneActionSubsystem::ClearActionPacks()
 		return;
 	}
 
-	// Deactivate ONLY the packs that this action activated.
 	Run->DeactivateTemporaryPacksByIds(ActivatedPackIds);
 	ActivatedPackIds.Reset();
 }
@@ -282,7 +350,7 @@ float UStoneActionSubsystem::GetActionProgress01() const
 	{
 		return 0.f;
 	}
-	return FMath::Clamp(TotalElapsedSeconds / BaseDurationSeconds, 0.f, 1.f);
+	return FMath::Clamp(TotalElapsedBaseSeconds / BaseDurationSeconds, 0.f, 1.f);
 }
 
 float UStoneActionSubsystem::GetLegProgress01() const
@@ -300,35 +368,29 @@ float UStoneActionSubsystem::GetLegProgress01() const
 	{
 		return 0.f;
 	}
-	return FMath::Clamp(PhaseElapsedSeconds / LegDur, 0.f, 1.f);
+	return FMath::Clamp(PhaseElapsedBaseSeconds / LegDur, 0.f, 1.f);
 }
 
 void UStoneActionSubsystem::EnterPhase(EStoneActionPhase NewPhase)
 {
 	Phase = NewPhase;
-	PhaseElapsedSeconds = 0.f;
-
-	// Phase transitions can cause boundary artifacts (random roll + phase switch in same tick).
-	// We explicitly skip random rolls for this tick.
+	PhaseElapsedBaseSeconds = 0.f;
 	bSkipRandomThisTick = true;
 
-	// Gate events must be queued BEFORE broadcasting UI state,
-	// otherwise the UI briefly shows "Arrived" without the event panel.
-	if (UStoneRunSubsystem* Run = GetRun())
+	UStoneRunSubsystem* Run = GetRun();
+	if (Run)
 	{
-		const FStoneGameplayTags& T = FStoneGameplayTags::Get();
-
 		if (Phase == EStoneActionPhase::Arrival)
 		{
-			Run->QueueEventByTag(T.Event_Travel_Arrival, /*bAutoPresent*/ true);
+			const int32 PendingBefore = Run->GetPendingEventCount();
+			Run->QueueEventByTag(FStoneGameplayTags::Get().Event_Travel_Arrival, true);
+			const int32 PendingAfter = Run->GetPendingEventCount();
+			UE_LOG(LogTemp, Warning,
+				TEXT("[StoneActionSubsystem] Phase=Arrival: queued arrival gate event. Pending %d -> %d Open=%s"),
+				PendingBefore, PendingAfter, Run->HasOpenEvent() ? TEXT("true") : TEXT("false"));
 		}
-
-		// IMPORTANT:
-		// Do NOT queue Event_Travel_Return at the start of Return.
-		// Return leg events are random and should fire DURING the leg via RollRandomTravelEvent().
 	}
 
-	// Now broadcast (UI may switch panels, update phase text, etc.)
 	OnActionStateChanged.Broadcast();
 }
 
@@ -353,8 +415,6 @@ void UStoneActionSubsystem::HandlePhaseAdvance()
 
 	if (Phase == EStoneActionPhase::Return)
 	{
-		// We are done traveling back. Queue a deterministic "return home" gate event if desired/content exists.
-		// We do NOT stop the action immediately if we just queued an event; the pause gate will freeze time.
 		Phase = EStoneActionPhase::Completed;
 
 		if (!bReturnHomeQueued)
@@ -363,19 +423,22 @@ void UStoneActionSubsystem::HandlePhaseAdvance()
 
 			if (UStoneRunSubsystem* Run = GetRun())
 			{
-				const FStoneGameplayTags& T = FStoneGameplayTags::Get();
-				Run->QueueEventByTag(T.Event_Travel_ReturnHome, /*bAutoPresent*/ true);
+				const int32 PendingBefore = Run->GetPendingEventCount();
+				Run->QueueEventByTag(FStoneGameplayTags::Get().Event_Travel_ReturnHome, true);
+				const int32 PendingAfter = Run->GetPendingEventCount();
+
+				UE_LOG(LogTemp, Warning,
+					TEXT("[StoneActionSubsystem] Phase=Completed: queued return-home gate event. Pending %d -> %d Open=%s"),
+					PendingBefore, PendingAfter, Run->HasOpenEvent() ? TEXT("true") : TEXT("false"));
 			}
 		}
 
-		// Let TickAction() decide when to finalize StopCurrentAction()
-		// (it will stop once Completed AND not event-blocked).
 		OnActionStateChanged.Broadcast();
 		return;
 	}
 }
 
-void UStoneActionSubsystem::RollRandomTravelEvent()
+void UStoneActionSubsystem::RollRandomLegEvent()
 {
 	if (!bActionRunning)
 	{
@@ -388,7 +451,7 @@ void UStoneActionSubsystem::RollRandomTravelEvent()
 	}
 
 	UStoneRunSubsystem* Run = GetRun();
-	if (!Run || Run->HasOpenEvent())
+	if (!Run || Run->HasOpenEvent() || Run->GetPendingEventCount() > 0)
 	{
 		return;
 	}
@@ -396,15 +459,24 @@ void UStoneActionSubsystem::RollRandomTravelEvent()
 	const float Roll = RNG.FRand();
 	if (Roll <= RandomChance01)
 	{
-		const FStoneGameplayTags& T = FStoneGameplayTags::Get();
-		const FGameplayTag Tag = (Phase == EStoneActionPhase::Outbound)
-			? T.Event_Travel_Outbound
-			: T.Event_Travel_Return;
+		const FGameplayTag Tag = GetLegRandomEventTag(Phase);
+		if (Tag.IsValid())
+		{
+			const int32 PendingBefore = Run->GetPendingEventCount();
+			Run->QueueEventByTag(Tag, true);
+			const int32 PendingAfter = Run->GetPendingEventCount();
 
-		Run->QueueEventByTag(Tag, /*bAutoPresent*/ true);
+			UE_LOG(LogTemp, Warning,
+				TEXT("[StoneActionSubsystem] RandomEvent: Phase=%d Tag=%s Roll=%.3f<=%.3f Pending %d->%d Open=%s"),
+				(int32)Phase,
+				*Tag.ToString(),
+				Roll, RandomChance01,
+				PendingBefore, PendingAfter,
+				Run->HasOpenEvent() ? TEXT("true") : TEXT("false"));
+		}
 	}
 
-	NextRandomCountdownSeconds = RNG.FRandRange(RandomMinGapSeconds, RandomMaxGapSeconds);
+	NextRandomCountdownBaseSeconds = RNG.FRandRange(RandomMinGapSeconds, RandomMaxGapSeconds);
 }
 
 void UStoneActionSubsystem::TickAction()
@@ -433,12 +505,13 @@ void UStoneActionSubsystem::TickAction()
 	// ----- PAUSE GATE -----
 	// No time advances while an event is open OR there are pending events waiting to be shown.
 	const bool bEventBlocking = Run->HasOpenEvent() || Run->GetPendingEventCount() > 0;
-	if (Run->GetSimulationSpeed() <= 0.f || bEventBlocking)
+	const float SimSpeed = Run->GetSimulationSpeed();
+	if (SimSpeed <= 0.f || bEventBlocking)
 	{
 		return;
 	}
 
-	// If we reached Completed earlier and no longer have events blocking, we can finalize shutdown.
+	// If we reached Completed earlier and no longer have events blocking, finalize shutdown.
 	if (Phase == EStoneActionPhase::Completed)
 	{
 		StopCurrentAction(false);
@@ -454,40 +527,46 @@ void UStoneActionSubsystem::TickAction()
 		return;
 	}
 
-	const float Dt = kActionTickInterval * Run->GetSimulationSpeed();
-	if (Dt <= 0.f)
+	const float SpeedMult = ResolveActionSpeedMult();
+	const float AdvanceBaseSeconds = kActionTickInterval * SimSpeed * SpeedMult;
+	if (AdvanceBaseSeconds <= 0.f)
 	{
 		return;
 	}
 
 	// ----- PHASE BOUNDARY GUARD -----
 	// If this tick would complete the current leg, we advance phase BEFORE any random rolls.
-	// This prevents "on-the-way" random events from firing at the exact moment we arrive/return.
-	const bool bWillFinishOutbound = (Phase == EStoneActionPhase::Outbound) && ((PhaseElapsedSeconds + Dt) >= OutboundSeconds);
-	const bool bWillFinishReturn   = (Phase == EStoneActionPhase::Return)   && ((PhaseElapsedSeconds + Dt) >= ReturnSeconds);
+	const bool bWillFinishOutbound = (Phase == EStoneActionPhase::Outbound) && ((PhaseElapsedBaseSeconds + AdvanceBaseSeconds) >= OutboundSeconds);
+	const bool bWillFinishReturn   = (Phase == EStoneActionPhase::Return)   && ((PhaseElapsedBaseSeconds + AdvanceBaseSeconds) >= ReturnSeconds);
 
 	if (bWillFinishOutbound || bWillFinishReturn)
 	{
-		TotalElapsedSeconds += Dt;
-		PhaseElapsedSeconds += Dt;
+		TotalElapsedBaseSeconds += AdvanceBaseSeconds;
+		PhaseElapsedBaseSeconds += AdvanceBaseSeconds;
 
 		HandlePhaseAdvance();
 		OnActionProgressChanged.Broadcast(GetActionProgress01());
 		return;
 	}
 
-	// Normal time advance.
-	TotalElapsedSeconds += Dt;
-	PhaseElapsedSeconds += Dt;
+	// Normal time advance (BASE seconds)
+	TotalElapsedBaseSeconds += AdvanceBaseSeconds;
+	PhaseElapsedBaseSeconds += AdvanceBaseSeconds;
 
-	// ----- RANDOM TRAVEL EVENT -----
-	// Random events only during Outbound/Return legs and never on the same tick as a phase change.
+	// ----- RANDOM LEG EVENT -----
+	// Random pacing is BASE seconds so speed does not delete content.
 	if (!bSkipRandomThisTick && (Phase == EStoneActionPhase::Outbound || Phase == EStoneActionPhase::Return))
 	{
-		NextRandomCountdownSeconds -= Dt;
-		if (NextRandomCountdownSeconds <= 0.f)
+		NextRandomCountdownBaseSeconds -= AdvanceBaseSeconds;
+
+		// If multipliers are high, we might skip multiple gaps in one tick.
+		// Safety cap prevents machine-gun rolls.
+		int32 SafetyRolls = 0;
+		while (NextRandomCountdownBaseSeconds <= 0.f && SafetyRolls < 3)
 		{
-			RollRandomTravelEvent();
+			++SafetyRolls;
+
+			RollRandomLegEvent();
 
 			// If an event was queued/presented, stop this tick immediately.
 			if (Run->HasOpenEvent() || Run->GetPendingEventCount() > 0)
@@ -532,7 +611,7 @@ FText UStoneActionSubsystem::GetPhaseText() const
 	switch (Phase)
 	{
 	case EStoneActionPhase::Outbound:   return FText::FromString(TEXT("On the way"));
-	case EStoneActionPhase::Arrival:    return FText::FromString(TEXT("Arrived"));
+	case EStoneActionPhase::Arrival:    return FText::FromString(TEXT("At destination"));
 	case EStoneActionPhase::Return:     return FText::FromString(TEXT("Returning"));
 	case EStoneActionPhase::Completed:  return FText::FromString(TEXT("Completed"));
 	default:                            return FText::GetEmpty();
@@ -546,7 +625,15 @@ float UStoneActionSubsystem::GetRemainingSeconds() const
 		return 0.f;
 	}
 
-	return FMath::Max(0.f, BaseDurationSeconds - TotalElapsedSeconds);
+	const UStoneRunSubsystem* Run = GetRun();
+	const float SimSpeed = Run ? Run->GetSimulationSpeed() : 1.f;
+	const float SpeedMult = ResolveActionSpeedMult();
+
+	const float RemainingBase = FMath::Max(0.f, BaseDurationSeconds - TotalElapsedBaseSeconds);
+	const float Denom = FMath::Max(0.001f, SimSpeed * SpeedMult);
+
+	// Remaining REAL seconds for UI.
+	return RemainingBase / Denom;
 }
 
 bool UStoneActionSubsystem::IsPausedByGameState() const
