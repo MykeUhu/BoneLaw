@@ -3,7 +3,7 @@
 #include "AbilitySystem/StoneAttributeSet.h"
 #include "GameplayEffectTypes.h"
 
-namespace StoneMMC
+namespace StoneModMagCalc
 {
 	static float Primary01(float V) { return FMath::Clamp(V, 0.f, 50.f) / 50.f; }
 	static float KnowledgeDelta01(float V) { return FMath::Clamp((V - 50.f) / 50.f, 0.f, 1.f); }
@@ -48,9 +48,9 @@ float UMMC_StoneInjuryResistance::CalculateBaseMagnitude_Implementation(const FG
 
 	// Injury resistance is mostly medical competence (progressed), with a toughness baseline.
 	const float R = FMath::Clamp(
-		0.35f * StoneMMC::Primary01(End) +
-		0.20f * StoneMMC::Primary01(Wil) +
-		0.45f * StoneMMC::KnowledgeDelta01(Med),
+		0.35f * StoneModMagCalc::Primary01(End) +
+		0.20f * StoneModMagCalc::Primary01(Wil) +
+		0.45f * StoneModMagCalc::KnowledgeDelta01(Med),
 		0.f, 1.f);
 
 	return FMath::Clamp(0.50f * R, 0.f, 0.50f);

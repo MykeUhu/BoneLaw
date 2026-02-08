@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "AttributeSet.h"
 #include "GameplayTagContainer.h"
 #include "StoneTypes.generated.h"
 
@@ -52,8 +51,9 @@ struct FStoneAttributeMin
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FGameplayAttribute Attribute;
+	/** Attribute identified by gameplay tag (e.g. Attributes.Vital.Food). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="Attributes"))
+	FGameplayTag AttributeTag;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	float MinValue = 0.f;
@@ -88,16 +88,15 @@ struct FStoneScheduledEvent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	int32 Offset = 1;
 
-	/** 
-	 * Event identifier - use one of these two options:
-	 * - EventTag (preferred): GameplayTag referencing the event. Allows data-driven configuration.
-	 * - EventId (legacy): FName for direct asset lookup. Use EventTag instead when possible.
-	 * If both are set, EventTag takes precedence.
+	/**
+	 * Event identifier (preferred): gameplay tag that maps to an event in the pool.
+	 * If you also set EventId, EventTag wins.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="MilestoneEvent,Event"))
 	FGameplayTag EventTag;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(DisplayName="Event ID (Legacy)"))
+	/** Optional direct id lookup (use only when you must reference a specific event by id). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(DisplayName="Event Id (Direct)"))
 	FName EventId;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
@@ -113,7 +112,6 @@ struct FStoneScheduledEvent
 	UPROPERTY()
 	int32 DueChoiceCount = 0;
 
-	/** Returns true if this scheduled event has a valid identifier (either Tag or Id). */
 	bool IsValid() const { return EventTag.IsValid() || !EventId.IsNone(); }
 };
 
@@ -125,21 +123,27 @@ struct FStoneOutcome
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	EStoneOutcomeType Type = EStoneOutcomeType::AttributeDelta;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FGameplayAttribute Attribute;
+	/** For AttributeDelta: attribute tag to modify (e.g. Attributes.Vital.Food). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="Attributes"))
+	FGameplayTag AttributeTag;
 
+	/** For AttributeDelta: signed delta. For other types: meaning depends on Type. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	float Magnitude = 0.f;
 
+	/** For ApplyGameplayEffect. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TSubclassOf<UGameplayEffect> GameplayEffectClass;
 
+	/** For AddTags/RemoveTags. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	FGameplayTagContainer Tags;
 
+	/** For ForceNextEvent / PoolAddEvent / PoolRemoveEvent: event id. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	FName EventId;
 
+	/** For ScheduleEvent. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	FStoneScheduledEvent Scheduled;
 };
@@ -147,34 +151,24 @@ struct FStoneOutcome
 /**
  * Time state for a run. All time data comes from Ultra Dynamic Sky (UDS).
  * C++ does NOT calculate time internally - it only tracks counters incremented by Blueprint.
- * 
- * Blueprint (GameMode/PlayerController) binds to UDS events:
- * - OnSunrise -> Call SetIsNight(false)
- * - OnSunset -> Call SetIsNight(true) 
- * - OnHourChanged -> Call OnHourChanged(Hour) for ambient events
  */
 USTRUCT(BlueprintType)
 struct FStoneTimeState
 {
 	GENERATED_BODY()
 
-	/** Current day number (starts at 1, incremented on sunrise) */
 	UPROPERTY(BlueprintReadOnly)
 	int32 DayIndex = 1;
 
-	/** True if currently night (set by UDS via Blueprint) */
 	UPROPERTY(BlueprintReadOnly)
 	bool bIsNight = false;
 
-	/** Total player choices/actions made this run */
 	UPROPERTY(BlueprintReadOnly)
 	int32 TotalChoices = 0;
 
-	/** Total nights that have passed (incremented on sunset) */
 	UPROPERTY(BlueprintReadOnly)
 	int32 TotalNightsPassed = 0;
 
-	/** Current hour (0-23, set by UDS via Blueprint) - for UI display only */
 	UPROPERTY(BlueprintReadOnly)
 	int32 CurrentHour = 6;
 };

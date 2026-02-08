@@ -40,21 +40,39 @@ public:
 	TArray<FName> PackIdsToActivate;
 
 	// Duration at SimulationSpeed=1.0
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|Action")
 	float BaseDurationSeconds = 300.f;
 
-	// Random pacing during legs
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	float RandomMinGapSeconds = 30.f;
+	// Fair RNG: geplante Slots in Base-Time (unabhängig von 1x/10x/AbilityTimeMulti)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|Action|Random", meta=(ClampMin="0"))
+	int32 OutboundRandomCountMin = 0;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	float RandomMaxGapSeconds = 90.f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|Action|Random", meta=(ClampMin="0"))
+	int32 OutboundRandomCountMax = 1;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	float RandomChance01 = 0.25f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|Action|Random", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float OutboundRandomChance01 = 0.35f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	bool bAllowImmediateRandom = false;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|Action|Random", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float OutboundRandomAtMin01 = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|Action|Random", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float OutboundRandomAtMax01 = 0.75f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|Action|Random", meta=(ClampMin="0"))
+	int32 ReturnRandomCountMin = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|Action|Random", meta=(ClampMin="0"))
+	int32 ReturnRandomCountMax = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|Action|Random", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float ReturnRandomChance01 = 0.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|Action|Random", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float ReturnRandomAtMin01 = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|Action|Random", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float ReturnRandomAtMax01 = 0.75f;
 
 	// Travel split (0..1). Default 50/50.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)

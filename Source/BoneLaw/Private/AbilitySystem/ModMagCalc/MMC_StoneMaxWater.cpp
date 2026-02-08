@@ -3,7 +3,7 @@
 #include "AbilitySystem/StoneAttributeSet.h"
 #include "GameplayEffectTypes.h"
 
-namespace StoneMMC
+namespace StoneModMagCalc
 {
 	static float Primary01(float Value) { return FMath::Clamp(Value, 0.f, 50.f) / 50.f; }
 	static float KnowledgeDelta01(float Value) { return FMath::Clamp((Value - 50.f) / 50.f, 0.f, 1.f); }
@@ -52,9 +52,9 @@ float UMMC_StoneMaxWater::CalculateBaseMagnitude_Implementation(const FGameplayE
 	// Water cap = finding/handling water (Survival) + technical mitigation (Craft) + body tolerance (Endurance).
 	const float R =
 		FMath::Clamp(
-			0.25f * StoneMMC::Primary01(Endurance) +
-			0.55f * StoneMMC::KnowledgeDelta01(KnowledgeSurvival) +
-			0.20f * StoneMMC::KnowledgeDelta01(KnowledgeCraft),
+			0.25f * StoneModMagCalc::Primary01(Endurance) +
+			0.55f * StoneModMagCalc::KnowledgeDelta01(KnowledgeSurvival) +
+			0.20f * StoneModMagCalc::KnowledgeDelta01(KnowledgeCraft),
 			0.f, 1.f);
 
 	const float Max = 100.f + 900.f * R;

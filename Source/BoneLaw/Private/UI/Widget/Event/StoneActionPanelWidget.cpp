@@ -256,7 +256,7 @@ void UStoneActionPanelWidget::RefreshInfoVisual()
 	// Status (paused by event/pause)
 	if (TB_ActionStatus)
 	{
-		if (bRunning && ActionSubsystem->IsPausedByGameState())
+		/*if (bRunning && ActionSubsystem->IsPausedByGameState())
 		{
 			TB_ActionStatus->SetText(FText::FromString(TEXT("Paused")));
 		}
@@ -264,6 +264,7 @@ void UStoneActionPanelWidget::RefreshInfoVisual()
 		{
 			TB_ActionStatus->SetText(FText::GetEmpty());
 		}
+		*/
 	}
 }
 

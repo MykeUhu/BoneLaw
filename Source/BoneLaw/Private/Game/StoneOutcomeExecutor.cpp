@@ -1,86 +1,139 @@
 ﻿#include "Game/StoneOutcomeExecutor.h"
 
 #include "AbilitySystemComponent.h"
-#include "GameplayEffect.h"
-#include "Data/StoneTypes.h"
+#include "AbilitySystem/StoneAttributeSet.h"
 #include "Game/StoneScheduler.h"
+#include "Runtime/StoneRunSubsystem.h"
 
-static void ApplyInstantDelta(UAbilitySystemComponent* ASC, const FGameplayAttribute& Attr, float Magnitude)
+namespace StoneOutcome
 {
-	if (!ASC || !Attr.IsValid()) return;
-	const float Cur = ASC->GetNumericAttribute(Attr);
-	ASC->SetNumericAttributeBase(Attr, Cur + Magnitude);
+	static bool ResolveAttributeFromTag(const FGameplayTag& AttributeTag, FGameplayAttribute& OutAttribute)
+	{
+		OutAttribute = FGameplayAttribute();
+		if (!AttributeTag.IsValid())
+		{
+			return false;
+		}
+
+		const UStoneAttributeSet* Defaults = GetDefault<UStoneAttributeSet>();
+		if (!Defaults)
+		{
+			return false;
+		}
+
+		const TStaticFuncPtr<FGameplayAttribute()>* Fn = Defaults->TagsToAttributes.Find(AttributeTag);
+		if (!Fn)
+		{
+			return false;
+		}
+
+		OutAttribute = (*Fn)();
+		return OutAttribute.IsValid();
+	}
 }
 
-void UStoneOutcomeExecutor::Execute(const TArray<FStoneOutcome>& Outcomes, FStoneOutcomeContext& Ctx)
+void UStoneOutcomeExecutor::ApplyOutcomes(const TArray<FStoneOutcome>& Outcomes, UStoneRunSubsystem* Run, const FStoneOutcomeContext& Ctx)
 {
+	if (!Run) return;
+
 	for (const FStoneOutcome& O : Outcomes)
 	{
-		switch (O.Type)
+		ApplyOutcome(O, Run, Ctx);
+	}
+}
+
+void UStoneOutcomeExecutor::ApplyOutcome(const FStoneOutcome& O, UStoneRunSubsystem* Run, const FStoneOutcomeContext& Ctx)
+{
+	if (!Run) return;
+
+	switch (O.Type)
+	{
+	case EStoneOutcomeType::AttributeDelta:
+	{
+		if (!Ctx.ASC)
 		{
-		case EStoneOutcomeType::AttributeDelta:
-			ApplyInstantDelta(Ctx.ASC, O.Attribute, O.Magnitude);
-			break;
-
-		case EStoneOutcomeType::ApplyGameplayEffect:
-			if (Ctx.ASC && O.GameplayEffectClass)
-			{
-				FGameplayEffectContextHandle CtxHandle = Ctx.ASC->MakeEffectContext();
-				CtxHandle.AddSourceObject(this);
-				const FGameplayEffectSpecHandle Spec = Ctx.ASC->MakeOutgoingSpec(O.GameplayEffectClass, 1.f, CtxHandle);
-				if (Spec.IsValid())
-				{
-					Ctx.ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-				}
-			}
-			break;
-
-		case EStoneOutcomeType::AddTags:
-			if (Ctx.Tags) { Ctx.Tags->AppendTags(O.Tags); }
-			break;
-
-		case EStoneOutcomeType::RemoveTags:
-			if (Ctx.Tags)
-			{
-				for (const FGameplayTag& T : O.Tags)
-				{
-					Ctx.Tags->RemoveTag(T);
-				}
-			}
-			break;
-
-		case EStoneOutcomeType::PoolAddEvent:
-			if (Ctx.EventPoolIds && O.EventId != NAME_None)
-			{
-				Ctx.EventPoolIds->AddUnique(O.EventId);
-			}
-			break;
-
-		case EStoneOutcomeType::PoolRemoveEvent:
-			if (Ctx.EventPoolIds && O.EventId != NAME_None)
-			{
-				Ctx.EventPoolIds->Remove(O.EventId);
-			}
-			break;
-
-		case EStoneOutcomeType::ForceNextEvent:
-			// This is handled at RunSubsystem level via a dedicated field; keep executor pure.
-			// Use ScheduleEvent Forced with Offset=0 for deterministic behavior.
-			break;
-
-		case EStoneOutcomeType::ScheduleEvent:
-			if (Ctx.Scheduler && Ctx.Time)
-			{
-				Ctx.Scheduler->Enqueue(O.Scheduled, *Ctx.Time);
-			}
-			break;
-
-		case EStoneOutcomeType::SetFocusTag:
-			if (Ctx.FocusTag && O.Tags.Num() > 0)
-			{
-				*Ctx.FocusTag = O.Tags.First();
-			}
+			UE_LOG(LogTemp, Warning, TEXT("[StoneOutcomeExecutor] AttributeDelta requested but ASC is null."));
 			break;
 		}
+
+		FGameplayAttribute Attr;
+		if (!StoneOutcome::ResolveAttributeFromTag(O.AttributeTag, Attr))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[StoneOutcomeExecutor] AttributeDelta: unknown AttributeTag '%s'."), *O.AttributeTag.ToString());
+			break;
+		}
+
+		const float Current = Ctx.ASC->GetNumericAttribute(Attr);
+		const float Next = Current + O.Magnitude;
+
+		Ctx.ASC->SetNumericAttributeBase(Attr, Next);
+
+		UE_LOG(LogTemp, Warning, TEXT("[StoneOutcomeExecutor] AttributeDelta %s %+0.2f (%.2f -> %.2f)"),
+			*O.AttributeTag.ToString(), O.Magnitude, Current, Next);
+		break;
+	}
+
+	case EStoneOutcomeType::ApplyGameplayEffect:
+	{
+		if (Ctx.ASC && *O.GameplayEffectClass)
+		{
+			FGameplayEffectContextHandle EffectCtx = Ctx.ASC->MakeEffectContext();
+			EffectCtx.AddSourceObject(Run);
+
+			const FGameplayEffectSpecHandle Spec = Ctx.ASC->MakeOutgoingSpec(O.GameplayEffectClass, 1.f, EffectCtx);
+			if (Spec.IsValid())
+			{
+				Ctx.ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+				UE_LOG(LogTemp, Warning, TEXT("[StoneOutcomeExecutor] Applied GE %s"), *O.GameplayEffectClass->GetName());
+			}
+		}
+		break;
+	}
+
+	case EStoneOutcomeType::AddTags:
+		if (Ctx.Tags)
+		{
+			Ctx.Tags->AppendTags(O.Tags);
+			Run->AddStateTags(O.Tags);
+		}
+		break;
+
+	case EStoneOutcomeType::RemoveTags:
+		if (Ctx.Tags)
+		{
+			Ctx.Tags->RemoveTags(O.Tags);
+			Run->RemoveStateTags(O.Tags);
+		}
+		break;
+
+	case EStoneOutcomeType::ForceNextEvent:
+		Run->ForceNextEvent(O.EventId);
+		break;
+
+	case EStoneOutcomeType::PoolAddEvent:
+		Run->PoolAddEvent(O.EventId);
+		break;
+
+	case EStoneOutcomeType::PoolRemoveEvent:
+		Run->PoolRemoveEvent(O.EventId);
+		break;
+
+	case EStoneOutcomeType::ScheduleEvent:
+		if (Ctx.Scheduler && Ctx.Time && O.Scheduled.IsValid())
+		{
+			Ctx.Scheduler->Enqueue(O.Scheduled, *Ctx.Time);
+		}
+		break;
+
+	case EStoneOutcomeType::SetFocusTag:
+		if (Ctx.FocusTag && O.Tags.Num() > 0)
+		{
+			*Ctx.FocusTag = O.Tags.First();
+			Run->SetFocus(*Ctx.FocusTag);
+		}
+		break;
+
+	default:
+		break;
 	}
 }
