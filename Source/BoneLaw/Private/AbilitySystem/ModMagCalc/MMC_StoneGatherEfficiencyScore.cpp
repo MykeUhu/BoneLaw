@@ -3,7 +3,7 @@
 #include "AbilitySystem/StoneAttributeSet.h"
 #include "GameplayEffectTypes.h"
 
-namespace StoneMMC
+namespace StoneModMagCalc
 {
 	static float Primary01(float V) { return FMath::Clamp(V, 0.f, 50.f) / 50.f; }
 	static float KnowledgeDelta01(float V) { return FMath::Clamp((V - 50.f) / 50.f, 0.f, 1.f); }
@@ -56,11 +56,11 @@ float UMMC_StoneGatherEfficiencyScore::CalculateBaseMagnitude_Implementation(con
 
 	// Gather is mostly know-how (where/when/how), with a physical component.
 	const float R = FMath::Clamp(
-		0.20f * StoneMMC::Primary01(End) +
-		0.15f * StoneMMC::Primary01(Str) +
-		0.35f * StoneMMC::KnowledgeDelta01(Surv) +
-		0.30f * StoneMMC::KnowledgeDelta01(Hunt),
+		0.20f * StoneModMagCalc::Primary01(End) +
+		0.15f * StoneModMagCalc::Primary01(Str) +
+		0.35f * StoneModMagCalc::KnowledgeDelta01(Surv) +
+		0.30f * StoneModMagCalc::KnowledgeDelta01(Hunt),
 		0.f, 1.f);
 
-	return StoneMMC::ScoreFromR(R);
+	return StoneModMagCalc::ScoreFromR(R);
 }

@@ -3,7 +3,7 @@
 #include "AbilitySystem/StoneAttributeSet.h"
 #include "GameplayEffectTypes.h"
 
-namespace StoneMMC
+namespace StoneModMagCalc
 {
 	static float Primary01(float V) { return FMath::Clamp(V, 0.f, 50.f) / 50.f; }
 	static float KnowledgeDelta01(float V) { return FMath::Clamp((V - 50.f) / 50.f, 0.f, 1.f); }
@@ -42,9 +42,9 @@ float UMMC_StoneCraftSpeedScore::CalculateBaseMagnitude_Implementation(const FGa
 
 	// Craft speed should be mostly learned skill; Intelligence supports but doesn't replace practice.
 	const float R = FMath::Clamp(
-		0.35f * StoneMMC::Primary01(Int) +
-		0.65f * StoneMMC::KnowledgeDelta01(Craft),
+		0.35f * StoneModMagCalc::Primary01(Int) +
+		0.65f * StoneModMagCalc::KnowledgeDelta01(Craft),
 		0.f, 1.f);
 
-	return StoneMMC::ScoreFromR(R);
+	return StoneModMagCalc::ScoreFromR(R);
 }

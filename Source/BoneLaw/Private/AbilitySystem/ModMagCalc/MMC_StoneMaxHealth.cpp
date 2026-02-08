@@ -3,7 +3,7 @@
 #include "AbilitySystem/StoneAttributeSet.h"
 #include "GameplayEffectTypes.h"
 
-namespace StoneMMC
+namespace StoneModMagCalc
 {
 	static float Primary01(float Value)
 	{
@@ -71,10 +71,10 @@ float UMMC_StoneMaxHealth::CalculateBaseMagnitude_Implementation(const FGameplay
 	// Medicine increases max health only as you progress beyond the baseline knowledge (50).
 	const float R =
 		FMath::Clamp(
-			0.45f * StoneMMC::Primary01(Endurance) +
-			0.20f * StoneMMC::Primary01(Strength) +
-			0.15f * StoneMMC::Primary01(Willpower) +
-			0.20f * StoneMMC::KnowledgeDelta01(KnowledgeMedicine),
+			0.45f * StoneModMagCalc::Primary01(Endurance) +
+			0.20f * StoneModMagCalc::Primary01(Strength) +
+			0.15f * StoneModMagCalc::Primary01(Willpower) +
+			0.20f * StoneModMagCalc::KnowledgeDelta01(KnowledgeMedicine),
 			0.f, 1.f);
 
 	// Start ~100, late game up to ~1000

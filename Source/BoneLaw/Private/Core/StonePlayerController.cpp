@@ -101,9 +101,14 @@ void AStonePlayerController::StartExploreExpedition(float DurationSeconds, float
 	Def->ActionType = EStoneActionType::Explore;
 	Def->DisplayName = FText::FromString(TEXT("Explore"));
 	Def->BaseDurationSeconds = FMath::Max(1.f, DurationSeconds);
-	Def->RandomMinGapSeconds = FMath::Max(0.f, MinEventGapSeconds);
-	Def->RandomMaxGapSeconds = FMath::Max(Def->RandomMinGapSeconds, MaxEventGapSeconds);
-	Def->bAllowImmediateRandom = bTriggerFirstEventImmediately;
+	Def->BaseDurationSeconds = FMath::Max(1.f, DurationSeconds);
+
+	// Map (Min/Max gap) -> (event count + chance). Keeps BP callsites stable.
+	const float MinGap = FMath::Max(0.1f, MinEventGapSeconds);
+	const float MaxGap = FMath::Max(MinGap, MaxEventGapSeconds);
+	const float AvgGap = 0.5f * (MinGap + MaxGap);
+	const float ExpectedEvents = Def->BaseDurationSeconds / FMath::Max(0.1f, AvgGap);
+
 	Def->PackIdsToActivate = { PackId };
 
 	const bool bStarted = ActionSS->StartAction(Def);

@@ -1,13 +1,14 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
+#include "UObject/Object.h"
 #include "GameplayTagContainer.h"
 #include "Data/StoneTypes.h"
-#include "UObject/Object.h"
 #include "StoneOutcomeExecutor.generated.h"
 
 class UAbilitySystemComponent;
 class UStoneScheduler;
+class UStoneRunSubsystem;
 
 struct FStoneOutcomeContext
 {
@@ -25,5 +26,6 @@ class BONELAW_API UStoneOutcomeExecutor : public UObject
 	GENERATED_BODY()
 
 public:
-	void Execute(const TArray<FStoneOutcome>& Outcomes, FStoneOutcomeContext& Ctx);
+	void ApplyOutcome(const FStoneOutcome& O, UStoneRunSubsystem* Run, const FStoneOutcomeContext& Ctx);
+	void ApplyOutcomes(const TArray<FStoneOutcome>& Outcomes, UStoneRunSubsystem* Run, const FStoneOutcomeContext& Ctx);
 };

@@ -3,7 +3,7 @@
 #include "AbilitySystem/StoneAttributeSet.h"
 #include "GameplayEffectTypes.h"
 
-namespace StoneMMC
+namespace StoneModMagCalc
 {
 	static float Primary01(float V) { return FMath::Clamp(V, 0.f, 50.f) / 50.f; }
 	static float KnowledgeDelta01(float V) { return FMath::Clamp((V - 50.f) / 50.f, 0.f, 1.f); }
@@ -48,9 +48,9 @@ float UMMC_StoneCarryCapacity::CalculateBaseMagnitude_Implementation(const FGame
 
 	// KCD-ish: Carry is mostly Strength/Endurance. Survival only matters once you progressed beyond baseline.
 	const float R = FMath::Clamp(
-		0.55f * StoneMMC::Primary01(Str) +
-		0.25f * StoneMMC::Primary01(End) +
-		0.20f * StoneMMC::KnowledgeDelta01(Surv),
+		0.55f * StoneModMagCalc::Primary01(Str) +
+		0.25f * StoneModMagCalc::Primary01(End) +
+		0.20f * StoneModMagCalc::KnowledgeDelta01(Surv),
 		0.f, 1.f);
 
 	const float Kg = 25.f + 95.f * R;

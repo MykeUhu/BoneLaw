@@ -76,6 +76,18 @@ public:
 	// === Lifecycle ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Run")
 	void StartNewRun(const FStoneRunConfig& Config);
+	
+	// === Simulation Speed ===
+	// Effective simulation speed used for action ticking (0 = paused).
+	// This is separate from the Ability-System speed multiplier (handled in StoneActionSubsystem).
+	UFUNCTION(BlueprintCallable, Category="Stone|Sim")
+	void SetSimulationSpeed(float NewSpeed);
+
+	UFUNCTION(BlueprintCallable, Category="Stone|Sim")
+	void SetWorldTimeSpeedMultiplier(float NewWorldTimeSpeed);
+
+	UFUNCTION(BlueprintPure, Category="Stone|Sim")
+	float GetSimulationSpeed() const;
 
 	// === Gameplay ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Run")
@@ -98,11 +110,13 @@ public:
 	FStoneEventChanged OnEventChanged;
 	
 	// === Simulation Speed (for real-time actions like expeditions) ===
-	UFUNCTION(BlueprintCallable, Category="Stone|Sim")
-	void SetSimulationSpeed(float NewSpeed);
+	// (0 = paused). Used by real-time systems (expeditions etc.).
+	UPROPERTY()
+	float UserSimSpeed = 1.f;
 
-	UFUNCTION(BlueprintPure, Category="Stone|Sim")
-	float GetSimulationSpeed() const { return SimulationSpeed; }
+	// Multiplier driven by the world clock (e.g. Ultra Dynamic Sky time speed)
+	UPROPERTY()
+	float WorldTimeSpeedMult = 1.f;
 
 	// === Expeditions (real-time, spaced events) ===
 	// Starts a real-time expedition that reveals events over time.
@@ -236,8 +250,17 @@ public:
 	void RemoveStateTags(const FGameplayTagContainer& TagsToRemove);
 	FGameplayTagContainer GetCurrentStateTags() const;
 	
+	void AddRunTags(const FGameplayTagContainer& Tags) { AddStateTags(Tags); }
+	void RemoveRunTags(const FGameplayTagContainer& Tags) { RemoveStateTags(Tags); }
+
+	void SetFocusTag(FGameplayTag Focus) { SetFocus(Focus); }
+	
 	// Utility
 	UAbilitySystemComponent* GetASC() const;
+	
+	void ForceNextEvent(FName EventId);
+	void PoolAddEvent(FName EventId);
+	void PoolRemoveEvent(FName EventId);
 
 protected:
 	virtual void Deinitialize() override;
@@ -334,7 +357,7 @@ private:
 
 	void EnsureWeightPolicy();
 	float ComputeCrisisMultiplier(const FStoneSnapshot& Snap, const UStoneEventData* Event) const;
-
+	
 	UStoneEventData* LoadEventById(FName EventId) const;
 
 	UPROPERTY()
@@ -455,4 +478,5 @@ private:
 
 	void TryAutoUnlockPacks();
 	void EnsurePackLibrary(bool bPreloadAllSync);
+	
 };

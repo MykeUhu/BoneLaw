@@ -43,10 +43,20 @@ namespace
 	}
 }
 
-void UStoneRunSubsystem::SetSimulationSpeed(float NewSpeed)
+float UStoneRunSubsystem::GetSimulationSpeed() const
 {
-	SimulationSpeed = FMath::Clamp(NewSpeed, 0.f, 10.f);
+	// Effective simulation speed used for action ticking.
+	// - UserSimSpeed: UI/cheat-controlled speed (0..10)
+	// - WorldTimeSpeedMult: world clock multiplier (e.g. UDS time speed)
+	// The ability-system multiplier is applied in StoneActionSubsystem via ResolveActionSpeedMult().
+	return FMath::Clamp(UserSimSpeed * WorldTimeSpeedMult, 0.f, 10.f);
 }
+
+void UStoneRunSubsystem::SetWorldTimeSpeedMultiplier(float NewWorldTimeSpeed)
+{
+	WorldTimeSpeedMult = FMath::Clamp(NewWorldTimeSpeed, 0.f, 10.f);
+}
+
 
 bool UStoneRunSubsystem::IsOnExpedition() const
 {
@@ -667,6 +677,11 @@ void UStoneRunSubsystem::StartNewRun(const FStoneRunConfig& Config)
 	BroadcastSnapshot();
 }
 
+void UStoneRunSubsystem::SetSimulationSpeed(float NewSpeed)
+{
+	UserSimSpeed = FMath::Clamp(NewSpeed, 0.f, 10.f);
+}
+
 void UStoneRunSubsystem::SetFocus(FGameplayTag InFocusTag)
 {
 	FocusTag = InFocusTag;
@@ -902,11 +917,20 @@ void UStoneRunSubsystem::ExecuteChoiceOutcomes(const FStoneChoiceData& Choice, b
 	Ctx.Time = &Time;
 	Ctx.FocusTag = &FocusTag;
 
-	OutcomeExecutor->Execute(bSoftFailPath ? Choice.FailOutcomes : Choice.Outcomes, Ctx);
+	const TArray<FStoneOutcome>& Outcomes = bSoftFailPath ? Choice.FailOutcomes : Choice.Outcomes;
 
-	for (const auto& S : Choice.Schedules)
+	if (OutcomeExecutor)
 	{
-		Scheduler->Enqueue(S, Time);
+		OutcomeExecutor->ApplyOutcomes(Outcomes, this, Ctx);
+	}
+
+	// Optional extra schedules directly on the choice (separate from outcomes)
+	if (Scheduler)
+	{
+		for (const FStoneScheduledEvent& Sch : Choice.Schedules)
+		{
+			Scheduler->Enqueue(Sch, Time);
+		}
 	}
 }
 
@@ -1349,6 +1373,67 @@ FGameplayTagContainer UStoneRunSubsystem::GetCurrentStateTags() const
 	return RunTags;
 }
 
+void UStoneRunSubsystem::ForceNextEvent(FName EventId)
+{
+	if (EventId.IsNone())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] ForceNextEvent: EventId is None."));
+		return;
+	}
+
+	// Put it at the front of the pending queue so it becomes the next opened event.
+	PendingEventIds.Insert(EventId, 0);
+
+	UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] ForceNextEvent: queued '%s' as next pending event. Pending=%d"),
+		*EventId.ToString(), PendingEventIds.Num());
+
+	// If nothing is currently open, auto-open it to match "forced" behavior.
+	if (!HasOpenEvent())
+	{
+		OpenNextPendingEvent();
+	}
+}
+
+void UStoneRunSubsystem::PoolAddEvent(FName EventId)
+{
+	if (EventId.IsNone())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] PoolAddEvent: EventId is None."));
+		return;
+	}
+
+	if (!EventPoolIds.Contains(EventId))
+	{
+		EventPoolIds.Add(EventId);
+		UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] PoolAddEvent: added '%s'. Pool=%d"),
+			*EventId.ToString(), EventPoolIds.Num());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("[StoneRunSubsystem] PoolAddEvent: '%s' already in pool."), *EventId.ToString());
+	}
+}
+
+void UStoneRunSubsystem::PoolRemoveEvent(FName EventId)
+{
+	if (EventId.IsNone())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] PoolRemoveEvent: EventId is None."));
+		return;
+	}
+
+	const int32 Removed = EventPoolIds.Remove(EventId);
+
+	if (Removed > 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] PoolRemoveEvent: removed '%s'. Pool=%d"),
+			*EventId.ToString(), EventPoolIds.Num());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("[StoneRunSubsystem] PoolRemoveEvent: '%s' not found in pool."), *EventId.ToString());
+	}
+}
 
 bool UStoneRunSubsystem::TryPickEventIdByTag(const FGameplayTag& RequiredTag, FName& OutEventId) const
 {
@@ -1717,7 +1802,8 @@ void UStoneRunSubsystem::TickRealtimeActions()
 	}
 
 	// Pause means: nothing advances and no events trigger.
-	if (SimulationSpeed <= 0.f)
+	const float SimSpeed = GetSimulationSpeed();
+	if (SimSpeed <= 0.f)
 	{
 		return;
 	}
@@ -1729,7 +1815,7 @@ void UStoneRunSubsystem::TickRealtimeActions()
 	}
 
 	constexpr float BaseDelta = 0.25f;
-	const float Dt = BaseDelta * SimulationSpeed;
+	const float Dt = BaseDelta * SimSpeed;
 
 	// === Expedition (existing behavior, now paced) ===
 	if (bExpeditionActive)

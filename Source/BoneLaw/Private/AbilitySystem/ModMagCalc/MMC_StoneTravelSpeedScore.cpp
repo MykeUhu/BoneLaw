@@ -3,7 +3,7 @@
 #include "AbilitySystem/StoneAttributeSet.h"
 #include "GameplayEffectTypes.h"
 
-namespace StoneMMC
+namespace StoneModMagCalc
 {
 	static float Primary01(float V) { return FMath::Clamp(V, 0.f, 50.f) / 50.f; }
 	static float KnowledgeDelta01(float V) { return FMath::Clamp((V - 50.f) / 50.f, 0.f, 1.f); }
@@ -49,10 +49,10 @@ float UMMC_StoneTravelSpeedScore::CalculateBaseMagnitude_Implementation(const FG
 
 	// Travel is stamina + fieldcraft. Strength helps but doesn't dominate.
 	const float R = FMath::Clamp(
-		0.40f * StoneMMC::Primary01(End) +
-		0.20f * StoneMMC::Primary01(Str) +
-		0.40f * StoneMMC::KnowledgeDelta01(Surv),
+		0.40f * StoneModMagCalc::Primary01(End) +
+		0.20f * StoneModMagCalc::Primary01(Str) +
+		0.40f * StoneModMagCalc::KnowledgeDelta01(Surv),
 		0.f, 1.f);
 
-	return StoneMMC::ScoreFromR(R);
+	return StoneModMagCalc::ScoreFromR(R);
 }

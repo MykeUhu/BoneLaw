@@ -1,8 +1,36 @@
 ﻿#include "Game/Events/StoneEventResolver.h"
 
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/StoneAttributeSet.h"
 #include "Core/StoneGameplayTags.h"
 #include "Data/StoneEventData.h"
+
+namespace StoneResolver
+{
+	static bool ResolveAttributeFromTag(const FGameplayTag& AttributeTag, FGameplayAttribute& OutAttribute)
+	{
+		OutAttribute = FGameplayAttribute();
+		if (!AttributeTag.IsValid())
+		{
+			return false;
+		}
+
+		const UStoneAttributeSet* Defaults = GetDefault<UStoneAttributeSet>();
+		if (!Defaults)
+		{
+			return false;
+		}
+
+		const TStaticFuncPtr<FGameplayAttribute()>* Fn = Defaults->TagsToAttributes.Find(AttributeTag);
+		if (!Fn)
+		{
+			return false;
+		}
+
+		OutAttribute = (*Fn)();
+		return OutAttribute.IsValid();
+	}
+}
 
 bool UStoneEventResolver::EvaluateRequirement(const FStoneRequirement& Req, const UAbilitySystemComponent* ASC, const FGameplayTagContainer& Tags) const
 {
@@ -27,9 +55,16 @@ bool UStoneEventResolver::EvaluateRequirement(const FStoneRequirement& Req, cons
 
 	if (ASC)
 	{
-		for (const auto& Min : Req.MinAttributes)
+		for (const FStoneAttributeMin& Min : Req.MinAttributes)
 		{
-			const float V = ASC->GetNumericAttribute(Min.Attribute);
+			FGameplayAttribute Attr;
+			if (!StoneResolver::ResolveAttributeFromTag(Min.AttributeTag, Attr))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[StoneEventResolver] Requirement references unknown AttributeTag '%s'."), *Min.AttributeTag.ToString());
+				return false;
+			}
+
+			const float V = ASC->GetNumericAttribute(Attr);
 			if (V < Min.MinValue)
 			{
 				return false;
@@ -65,7 +100,7 @@ void UStoneEventResolver::ResolveChoices(const UStoneEventData* Event, const UAb
 				R.bEnabled = false;
 				break;
 			case EStoneChoiceLockMode::SoftFail:
-				R.bSoftFail = true; // still enabled
+				R.bSoftFail = true;
 				break;
 			}
 		}
@@ -82,38 +117,20 @@ int32 UStoneEventResolver::ComputeFinalWeight(const UStoneEventData* Event, cons
 
 	int32 Weight = FMath::Max(0, Event->BaseWeight);
 
-	// Crisis weighting (Beispiel)
 	if (Snapshot.Food < 25.f && Event->EventTags.HasTag(Tags.Event_Hunt))
 	{
 		Weight *= 2;
 	}
 
-	// Focus weighting (Focus -> Event category mapping)
 	if (Snapshot.FocusTag.IsValid())
 	{
-		if (Snapshot.FocusTag == Tags.Focus_Hunt && Event->EventTags.HasTag(Tags.Event_Hunt))
-		{
-			Weight *= 2;
-		}
-		else if (Snapshot.FocusTag == Tags.Focus_Shelter && Event->EventTags.HasTag(Tags.Event_Shelter))
-		{
-			Weight *= 2;
-		}
-		else if (Snapshot.FocusTag == Tags.Focus_Water && Event->EventTags.HasTag(Tags.Event_Water))
-		{
-			Weight *= 2;
-		}
-		else if (Snapshot.FocusTag == Tags.Focus_Fire && Event->EventTags.HasTag(Tags.Event_Fire))
-		{
-			Weight *= 2;
-		}
-		else if (Snapshot.FocusTag == Tags.Focus_Forage && Event->EventTags.HasTag(Tags.Event_Forage))
-		{
-			Weight *= 2;
-		}
+		if (Snapshot.FocusTag == Tags.Focus_Hunt && Event->EventTags.HasTag(Tags.Event_Hunt)) Weight *= 2;
+		else if (Snapshot.FocusTag == Tags.Focus_Shelter && Event->EventTags.HasTag(Tags.Event_Shelter)) Weight *= 2;
+		else if (Snapshot.FocusTag == Tags.Focus_Water && Event->EventTags.HasTag(Tags.Event_Water)) Weight *= 2;
+		else if (Snapshot.FocusTag == Tags.Focus_Fire && Event->EventTags.HasTag(Tags.Event_Fire)) Weight *= 2;
+		else if (Snapshot.FocusTag == Tags.Focus_Forage && Event->EventTags.HasTag(Tags.Event_Forage)) Weight *= 2;
 	}
 
-	// Night weighting
 	if (Snapshot.Time.bIsNight && Event->EventTags.HasTag(Tags.Event_Night))
 	{
 		Weight *= 2;
