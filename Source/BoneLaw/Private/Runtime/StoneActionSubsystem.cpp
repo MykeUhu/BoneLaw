@@ -1,4 +1,4 @@
-﻿#include "Runtime/StoneActionSubsystem.h"
+#include "Runtime/StoneActionSubsystem.h"
 
 #include "Engine/World.h"
 #include "TimerManager.h"
@@ -79,6 +79,16 @@ void UStoneActionSubsystem::ApplyRunSideEffects()
 		return;
 	}
 
+	// MP READY: Authority check for tag/pack modifications
+	if (UWorld* World = GetWorld())
+	{
+		if (World->GetNetMode() == NM_Client)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[StoneAction] ApplyRunSideEffects called on client - ignoring (authority required)"));
+			return;
+		}
+	}
+
 	// Activate packs temporarily (SSOT via RunSubsystem)
 	ActivatedPackIds.Reset();
 	for (const FName& PackId : CurrentDef->PackIdsToActivate)
@@ -106,6 +116,18 @@ void UStoneActionSubsystem::RemoveRunSideEffects()
 		AppliedStateTags.Reset();
 		ActivatedPackIds.Reset();
 		return;
+	}
+
+	// MP READY: Authority check for tag/pack modifications
+	if (UWorld* World = GetWorld())
+	{
+		if (World->GetNetMode() == NM_Client)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[StoneAction] RemoveRunSideEffects called on client - ignoring (authority required)"));
+			AppliedStateTags.Reset();
+			ActivatedPackIds.Reset();
+			return;
+		}
 	}
 
 	if (!AppliedStateTags.IsEmpty())
@@ -307,7 +329,23 @@ FGameplayTag UStoneActionSubsystem::GetLegRandomEventTag(EStoneActionPhase InPha
 		return FGameplayTag();
 	}
 
-	return (InPhase == EStoneActionPhase::Outbound) ? T.Event_Travel_Outbound : T.Event_Travel_Return;
+	// Use Action-specific tags based on ActionType (Action.Travel.*, Action.Gather.*, Action.Explore.*)
+	switch (CurrentDef->ActionType)
+	{
+	case EStoneActionType::Travel:
+		return (InPhase == EStoneActionPhase::Outbound) ? T.Action_Travel_Outbound : T.Action_Travel_Return;
+
+	case EStoneActionType::Gather:
+		return (InPhase == EStoneActionPhase::Outbound) ? T.Action_Gather_Outbound : T.Action_Gather_Return;
+
+	case EStoneActionType::Explore:
+		return (InPhase == EStoneActionPhase::Outbound) ? T.Action_Explore_Outbound : T.Action_Explore_Return;
+
+	case EStoneActionType::Custom:
+	default:
+		// Fallback to generic Event.Travel.* tags for backward compatibility
+		return (InPhase == EStoneActionPhase::Outbound) ? T.Event_Travel_Outbound : T.Event_Travel_Return;
+	}
 }
 
 void UStoneActionSubsystem::EnterPhase(EStoneActionPhase NewPhase)
@@ -319,7 +357,31 @@ void UStoneActionSubsystem::EnterPhase(EStoneActionPhase NewPhase)
 	if (Run && Phase == EStoneActionPhase::Arrival)
 	{
 		// Arrival is a gate event: open immediately if possible
-		Run->QueueEventByTag(FStoneGameplayTags::Get().Event_Travel_Arrival, true);
+		// Use Action-specific arrival tag based on ActionType
+		const FStoneGameplayTags& T = FStoneGameplayTags::Get();
+		FGameplayTag ArrivalTag = T.Event_Travel_Arrival; // default fallback
+
+		if (CurrentDef)
+		{
+			switch (CurrentDef->ActionType)
+			{
+			case EStoneActionType::Travel:
+				ArrivalTag = T.Action_Travel_Arrival;
+				break;
+			case EStoneActionType::Gather:
+				ArrivalTag = T.Action_Gather_Arrival;
+				break;
+			case EStoneActionType::Explore:
+				ArrivalTag = T.Action_Explore_Arrival;
+				break;
+			case EStoneActionType::Custom:
+			default:
+				ArrivalTag = T.Event_Travel_Arrival; // backward compat
+				break;
+			}
+		}
+
+		Run->QueueEventByTag(ArrivalTag, true);
 	}
 
 	OnActionStateChanged.Broadcast();
@@ -351,7 +413,31 @@ void UStoneActionSubsystem::HandlePhaseAdvance()
 				bReturnHomeQueued = true;
 				if (UStoneRunSubsystem* Run = GetRun())
 				{
-					Run->QueueEventByTag(FStoneGameplayTags::Get().Event_Travel_ReturnHome, true);
+					// Use Action-specific return-home tag
+					const FStoneGameplayTags& T = FStoneGameplayTags::Get();
+					FGameplayTag ReturnHomeTag = T.Event_Travel_ReturnHome; // default fallback
+
+					if (CurrentDef)
+					{
+						switch (CurrentDef->ActionType)
+						{
+						case EStoneActionType::Travel:
+							ReturnHomeTag = T.Action_Travel_ReturnHome;
+							break;
+						case EStoneActionType::Gather:
+							ReturnHomeTag = T.Action_Gather_ReturnHome;
+							break;
+						case EStoneActionType::Explore:
+							ReturnHomeTag = T.Action_Explore_ReturnHome;
+							break;
+						case EStoneActionType::Custom:
+						default:
+							ReturnHomeTag = T.Event_Travel_ReturnHome; // backward compat
+							break;
+						}
+					}
+
+					Run->QueueEventByTag(ReturnHomeTag, true);
 				}
 			}
 

@@ -1,14 +1,8 @@
-﻿#include "AbilitySystem/ModMagCalc/MMC_StoneCraftSpeedScore.h"
+#include "AbilitySystem/ModMagCalc/MMC_StoneCraftSpeedScore.h"
 
 #include "AbilitySystem/StoneAttributeSet.h"
+#include "AbilitySystem/ModMagCalc/StoneModMagCalcHelpers.h"
 #include "GameplayEffectTypes.h"
-
-namespace StoneModMagCalc
-{
-	static float Primary01(float V) { return FMath::Clamp(V, 0.f, 50.f) / 50.f; }
-	static float KnowledgeDelta01(float V) { return FMath::Clamp((V - 50.f) / 50.f, 0.f, 1.f); }
-	static float ScoreFromR(float R) { return FMath::Clamp(100.f + 70.f * R, 60.f, 170.f); }
-}
 
 UMMC_StoneCraftSpeedScore::UMMC_StoneCraftSpeedScore()
 {

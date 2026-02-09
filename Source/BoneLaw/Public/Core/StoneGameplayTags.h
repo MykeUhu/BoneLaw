@@ -48,8 +48,27 @@ public:
 	
 	FGameplayTag State_Found_Berries;
 	FGameplayTag State_Found_SharpStone;
-	
+
+	// =========================
+	// Action Tags (Action System - separate from Events)
+	// =========================
 	FGameplayTag Action_Explore_Area;
+
+	// Action phases (replace Event.Travel.* for action-driven flows)
+	FGameplayTag Action_Travel_Outbound;
+	FGameplayTag Action_Travel_Arrival;
+	FGameplayTag Action_Travel_Return;
+	FGameplayTag Action_Travel_ReturnHome;
+
+	FGameplayTag Action_Gather_Outbound;
+	FGameplayTag Action_Gather_Arrival;
+	FGameplayTag Action_Gather_Return;
+	FGameplayTag Action_Gather_ReturnHome;
+
+	FGameplayTag Action_Explore_Outbound;
+	FGameplayTag Action_Explore_Arrival;
+	FGameplayTag Action_Explore_Return;
+	FGameplayTag Action_Explore_ReturnHome;
 
 	// =========================
 	// Regions (run-level identity)

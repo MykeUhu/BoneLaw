@@ -1,13 +1,8 @@
-﻿#include "AbilitySystem/ModMagCalc/MMC_StoneMaxFood.h"
+#include "AbilitySystem/ModMagCalc/MMC_StoneMaxFood.h"
 
 #include "AbilitySystem/StoneAttributeSet.h"
+#include "AbilitySystem/ModMagCalc/StoneModMagCalcHelpers.h"
 #include "GameplayEffectTypes.h"
-
-namespace StoneModMagCalc
-{
-	static float Primary01(float Value) { return FMath::Clamp(Value, 0.f, 50.f) / 50.f; }
-	static float KnowledgeDelta01(float Value) { return FMath::Clamp((Value - 50.f) / 50.f, 0.f, 1.f); }
-}
 
 UMMC_StoneMaxFood::UMMC_StoneMaxFood()
 {

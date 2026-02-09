@@ -27,6 +27,14 @@ struct FStoneChoiceData
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TArray<FStoneScheduledEvent> Schedules;
+
+	/** Optional icon for this choice (shown in button). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|UI")
+	TSoftObjectPtr<UTexture2D> ChoiceIcon;
+
+	/** If true, this choice forces a return/end (e.g. dangerous outcome). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stone|UI")
+	bool bForcesReturn = false;
 };
 
 UCLASS(BlueprintType)

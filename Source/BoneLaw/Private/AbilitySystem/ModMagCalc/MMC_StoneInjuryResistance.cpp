@@ -1,13 +1,8 @@
-﻿#include "AbilitySystem/ModMagCalc/MMC_StoneInjuryResistance.h"
+#include "AbilitySystem/ModMagCalc/MMC_StoneInjuryResistance.h"
 
 #include "AbilitySystem/StoneAttributeSet.h"
+#include "AbilitySystem/ModMagCalc/StoneModMagCalcHelpers.h"
 #include "GameplayEffectTypes.h"
-
-namespace StoneModMagCalc
-{
-	static float Primary01(float V) { return FMath::Clamp(V, 0.f, 50.f) / 50.f; }
-	static float KnowledgeDelta01(float V) { return FMath::Clamp((V - 50.f) / 50.f, 0.f, 1.f); }
-}
 
 UMMC_StoneInjuryResistance::UMMC_StoneInjuryResistance()
 {
