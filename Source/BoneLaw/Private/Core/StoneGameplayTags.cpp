@@ -108,10 +108,76 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 		FString("Found: Sharp Stone")
 		);
 	
-	GameplayTags.Action_Explore_Area= UGameplayTagsManager::Get().AddNativeGameplayTag(
+	// =========================
+	// Action Tags (Action System - separate from Events)
+	// =========================
+	GameplayTags.Action_Explore_Area = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Action.Explore.Area"),
 		FString("Action: Explore an area")
-		);
+	);
+
+	// Travel Action Phases
+	GameplayTags.Action_Travel_Outbound = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Travel.Outbound"),
+		FString("Action phase: Travel outbound leg (replaces Event.Travel.Outbound for actions)")
+	);
+
+	GameplayTags.Action_Travel_Arrival = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Travel.Arrival"),
+		FString("Action phase: Travel arrival at destination")
+	);
+
+	GameplayTags.Action_Travel_Return = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Travel.Return"),
+		FString("Action phase: Travel return leg")
+	);
+
+	GameplayTags.Action_Travel_ReturnHome = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Travel.ReturnHome"),
+		FString("Action phase: Travel return home (end of travel)")
+	);
+
+	// Gather Action Phases
+	GameplayTags.Action_Gather_Outbound = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Gather.Outbound"),
+		FString("Action phase: Gather outbound leg")
+	);
+
+	GameplayTags.Action_Gather_Arrival = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Gather.Arrival"),
+		FString("Action phase: Gather arrival at destination")
+	);
+
+	GameplayTags.Action_Gather_Return = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Gather.Return"),
+		FString("Action phase: Gather return leg")
+	);
+
+	GameplayTags.Action_Gather_ReturnHome = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Gather.ReturnHome"),
+		FString("Action phase: Gather return home")
+	);
+
+	// Explore Action Phases
+	GameplayTags.Action_Explore_Outbound = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Explore.Outbound"),
+		FString("Action phase: Explore outbound leg")
+	);
+
+	GameplayTags.Action_Explore_Arrival = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Explore.Arrival"),
+		FString("Action phase: Explore arrival at destination")
+	);
+
+	GameplayTags.Action_Explore_Return = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Explore.Return"),
+		FString("Action phase: Explore return leg")
+	);
+
+	GameplayTags.Action_Explore_ReturnHome = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Explore.ReturnHome"),
+		FString("Action phase: Explore return home")
+	);
 
 	// =========================
 	// Regions

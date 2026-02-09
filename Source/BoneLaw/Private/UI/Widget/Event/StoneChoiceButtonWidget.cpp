@@ -17,19 +17,23 @@ void UStoneChoiceButtonWidget::NativeDestruct()
     Super::NativeDestruct();
 }
 
-void UStoneChoiceButtonWidget::InitChoice(int32 InChoiceIndex, const FText& InLabel, bool bInEnabled, bool bInSoftFail, const FText& InDisabledReason)
+void UStoneChoiceButtonWidget::InitChoice(int32 InChoiceIndex, const FText& InLabel, bool bInEnabled, bool bInSoftFail, const FText& InDisabledReason, 
+                                          const TArray<FStoneOutcome>& InOutcomes, UTexture2D* InIcon, bool bInForcesReturn)
 {
-    ChoiceIndex = InChoiceIndex;
-    bSoftFail = bInSoftFail;
-    DisabledReason = InDisabledReason;
+	ChoiceIndex = InChoiceIndex;
+	bSoftFail = bInSoftFail;
+	DisabledReason = InDisabledReason;
+	Outcomes = InOutcomes;
+	ChoiceIcon = InIcon;
+	bForcesReturn = bInForcesReturn;
 
-    SetButtonText(InLabel);
-    SetIsEnabled(bInEnabled);
+	SetButtonText(InLabel);
+	SetIsEnabled(bInEnabled);
 
-    // Optional: softfail looks enabled but could show a hint on hover (wenn dein CustomButton das unterstützt)
-    // z.B. SetToolTipText(bSoftFail ? DisabledReason : FText::GetEmpty());
+	// Blueprint can now access Outcomes/Icon/ForcesReturn via getters and update preview widgets
+	BP_OnOutcomesUpdated();
 
-    SetVisibility(ESlateVisibility::Visible);
+	SetVisibility(ESlateVisibility::Visible);
 }
 
 void UStoneChoiceButtonWidget::HandleBaseClicked()

@@ -1,22 +1,8 @@
-﻿#include "AbilitySystem/ModMagCalc/MMC_StoneMaxHealth.h"
+#include "AbilitySystem/ModMagCalc/MMC_StoneMaxHealth.h"
 
 #include "AbilitySystem/StoneAttributeSet.h"
+#include "AbilitySystem/ModMagCalc/StoneModMagCalcHelpers.h"
 #include "GameplayEffectTypes.h"
-
-namespace StoneModMagCalc
-{
-	static float Primary01(float Value)
-	{
-		// Design-softcap at 50. Primary starts low (0-10) and grows over long play.
-		return FMath::Clamp(Value, 0.f, 50.f) / 50.f;
-	}
-
-	static float KnowledgeDelta01(float Value)
-	{
-		// Knowledge baseline is 50 (neutral). Only progress above baseline increases caps.
-		return FMath::Clamp((Value - 50.f) / 50.f, 0.f, 1.f);
-	}
-}
 
 UMMC_StoneMaxHealth::UMMC_StoneMaxHealth()
 {

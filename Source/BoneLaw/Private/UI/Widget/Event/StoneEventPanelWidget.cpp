@@ -314,7 +314,16 @@ void UStoneEventPanelWidget::RebuildChoices()
 		UStoneChoiceButtonWidget* Btn = CreateWidget<UStoneChoiceButtonWidget>(GetWorld(), ChoiceButtonClass);
 		if (!Btn) continue;
 
-		Btn->InitChoice(i, ChoiceData.ChoiceText, R.bEnabled, R.bSoftFail, R.DisabledReason);
+		// Load icon if specified (soft object ptr)
+		UTexture2D* LoadedIcon = nullptr;
+		if (!ChoiceData.ChoiceIcon.IsNull())
+		{
+			LoadedIcon = ChoiceData.ChoiceIcon.LoadSynchronous();
+		}
+
+		// Pass outcomes, icon, and forces-return flag to button for preview
+		Btn->InitChoice(i, ChoiceData.ChoiceText, R.bEnabled, R.bSoftFail, R.DisabledReason, 
+		                ChoiceData.Outcomes, LoadedIcon, ChoiceData.bForcesReturn);
 
 		Btn->OnChoiceClicked.RemoveDynamic(this, &UStoneEventPanelWidget::HandleChoiceClicked);
 		Btn->OnChoiceClicked.AddDynamic(this, &UStoneEventPanelWidget::HandleChoiceClicked);
