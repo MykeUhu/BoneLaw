@@ -40,6 +40,12 @@ public:
 	FGameplayTag State_InCave;
 	FGameplayTag State_OnExpedition;
 
+	// Camera States (Commander/FreeCam workflow)
+	FGameplayTag State_Camera_Free;          // FreeCam mode (default, flying spectator)
+	FGameplayTag State_Camera_Follow;        // Following/observing a selected settler
+	FGameplayTag State_Camera_BuildPlacement; // Build ghost placement active
+	FGameplayTag State_Camera_UI;            // UI interaction (radial menu, etc.)
+
 	// Action state (real-time actions orchestrated by Stone)
 	FGameplayTag State_OnAction;
 	FGameplayTag State_OnTravel;

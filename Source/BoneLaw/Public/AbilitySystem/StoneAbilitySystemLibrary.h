@@ -12,10 +12,10 @@
 class UAbilitySystemComponent;
 class ULoadScreenSaveGame;
 class UAbilityInfo;
-class ULoadScreenSaveGame;
 
 class AStoneHUD;
 class UStoneOverlayWidgetController;
+class UStoneStatsWidgetController;
 struct FWidgetControllerParams;
 
 /**
@@ -39,6 +39,9 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="StoneAbilitySystemLibrary|WidgetController", meta = (DefaultToSelf = "WorldContextObject"))
 	static UStoneOverlayWidgetController* GetOverlayWidgetController(const UObject* WorldContextObject);
+	
+	UFUNCTION(BlueprintPure, Category="StoneAbilitySystemLibrary|WidgetController", meta=(DefaultToSelf="WorldContextObject"))
+	static UStoneStatsWidgetController* GetStatsWidgetController(const UObject* WorldContextObject);
 
 	/* for later
 	UFUNCTION(BlueprintPure, Category="StoneAbilitySystemLibrary|WidgetController", meta = (DefaultToSelf = "WorldContextObject"))

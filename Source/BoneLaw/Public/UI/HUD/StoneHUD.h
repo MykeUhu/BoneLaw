@@ -11,11 +11,9 @@ class UAttributeSet;
 class UAbilitySystemComponent;
 class UStoneUserWidget;
 class UStoneOverlayWidgetController;
+class UStoneStatsWidgetController;
 struct FWidgetControllerParams;
 
-/**
- * AStoneHUD - Following Aura pattern exactly
- */
 UCLASS()
 class BONELAW_API AStoneHUD : public AHUD
 {
@@ -23,6 +21,7 @@ class BONELAW_API AStoneHUD : public AHUD
 
 public:
 	UStoneOverlayWidgetController* GetOverlayWidgetController(const FWidgetControllerParams& WCParams);
+	UStoneStatsWidgetController* GetStatsWidgetController(const FWidgetControllerParams& WCParams);
 
 	void InitOverlay(APlayerController* PC, APlayerState* PS, UAbilitySystemComponent* ASC, UAttributeSet* AS);
 
@@ -38,4 +37,10 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<UStoneOverlayWidgetController> OverlayWidgetControllerClass;
+
+	UPROPERTY()
+	TObjectPtr<UStoneStatsWidgetController> StatsWidgetController;
+
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<UStoneStatsWidgetController> StatsWidgetControllerClass;
 };

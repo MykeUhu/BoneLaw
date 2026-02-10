@@ -91,6 +91,27 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 		FName("State.OnTravel"),
 		FString("Run state: player is currently travelling (a travel action is active)")
 	);
+
+	// Camera States
+	GameplayTags.State_Camera_Free = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Camera.Free"),
+		FString("Camera state: FreeCam mode (flying spectator, default)")
+	);
+
+	GameplayTags.State_Camera_Follow = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Camera.Follow"),
+		FString("Camera state: Following/observing a selected settler")
+	);
+
+	GameplayTags.State_Camera_BuildPlacement = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Camera.BuildPlacement"),
+		FString("Camera state: Build ghost placement active")
+	);
+
+	GameplayTags.State_Camera_UI = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Camera.UI"),
+		FString("Camera state: UI interaction mode (radial menu open, etc.)")
+	);
 	
 	
 	GameplayTags.State_Injury_Leg = UGameplayTagsManager::Get().AddNativeGameplayTag(

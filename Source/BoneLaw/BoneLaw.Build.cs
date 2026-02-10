@@ -14,6 +14,7 @@ public class BoneLaw : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"InputCore",
+			"EnhancedInput", // Enhanced Input System (UE5)
 
 			// UI
 			"UMG",
@@ -35,7 +36,7 @@ public class BoneLaw : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			// Used by StoneContentValidator (FAssetRegistryModule, FARFilter)
-			"AssetRegistry",
+			"AssetRegistry", "Foliage",
 		});
 	}
 }
