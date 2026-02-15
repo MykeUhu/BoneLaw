@@ -4,6 +4,7 @@
 #include "Engine/DeveloperSettings.h"
 #include "StoneContentSettings.generated.h"
 
+
 /**
  * @class UStoneContentSettings
  * @brief Provides configurable settings for managing Stone assets, validation, and developer-specific controls.
@@ -28,7 +29,6 @@ public:
 	// Required payoff events (Bible gate)
 	UPROPERTY(EditAnywhere, Config, Category="Stone|Validation")
 	TArray<FName> RequiredWorldlineEventIds;
-
 
 	// Dev-only convenience
 	UPROPERTY(EditAnywhere, Config, Category="Stone|Validation")

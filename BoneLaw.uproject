@@ -9,7 +9,8 @@
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
 			"AdditionalDependencies": [
-				"Engine"
+				"Engine",
+				"ModelViewViewModel"
 			]
 		}
 	],
@@ -67,6 +68,10 @@
 		},
 		{
 			"Name": "PCGBiomeSample",
+			"Enabled": true
+		},
+		{
+			"Name": "ModelViewViewModelPreview",
 			"Enabled": true
 		}
 	]

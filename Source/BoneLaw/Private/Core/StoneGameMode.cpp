@@ -8,8 +8,10 @@
 #include "Core/Interaction/SaveInterface.h"
 #include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
+#include "Runtime/StoneRosterSubsystem.h"
 #include "Runtime/StoneRunSubsystem.h"
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
+#include "UI/ViewModel/MVVM_LoadSlot.h"
 
 AStoneGameMode::AStoneGameMode()
 {
@@ -20,22 +22,6 @@ AStoneGameMode::AStoneGameMode()
 	PlayerControllerClass = AStonePlayerController::StaticClass();
 	HUDClass = AStoneHUD::StaticClass();
 
-}
-
-// Load Save
-ULoadScreenSaveGame* AStoneGameMode::GetSaveSlotData(const FString& SlotName, int32 SlotIndex) const
-{
-	USaveGame* SaveGameObject = nullptr;
-	if (UGameplayStatics::DoesSaveGameExist(SlotName, SlotIndex))
-	{
-		SaveGameObject = UGameplayStatics::LoadGameFromSlot(SlotName, SlotIndex);
-	}
-	else
-	{
-		SaveGameObject = UGameplayStatics::CreateSaveGameObject(LoadScreenSaveGameClass);
-	}
-	ULoadScreenSaveGame* LoadScreenSaveGame = Cast<ULoadScreenSaveGame>(SaveGameObject);
-	return LoadScreenSaveGame;
 }
 
 ULoadScreenSaveGame* AStoneGameMode::RetrieveInGameSaveData()
@@ -160,6 +146,36 @@ void AStoneGameMode::LoadWorldState(UWorld* World) const
 		}
 	}
 }
+
+void AStoneGameMode::SaveSlotData(UMVVM_LoadSlot* LoadSlot, int32 SlotIndex)
+{
+	if (UGameplayStatics::DoesSaveGameExist(LoadSlot->GetLoadSlotName(), SlotIndex))
+	{
+		UGameplayStatics::DeleteGameInSlot(LoadSlot->GetLoadSlotName(), SlotIndex);
+	}
+	USaveGame* SaveGameObject = UGameplayStatics::CreateSaveGameObject(LoadScreenSaveGameClass);
+	ULoadScreenSaveGame* LoadScreenSaveGame = Cast<ULoadScreenSaveGame>(SaveGameObject);
+	LoadScreenSaveGame->PlayerName = LoadSlot->GetPlayerName();
+	LoadScreenSaveGame->SaveSlotStatus = Taken;
+
+	UGameplayStatics::SaveGameToSlot(LoadScreenSaveGame, LoadSlot->GetLoadSlotName(), SlotIndex);
+}
+
+ULoadScreenSaveGame* AStoneGameMode::GetSaveSlotData(const FString& SlotName, int32 SlotIndex) const
+{
+	USaveGame* SaveGameObject = nullptr;
+	if (UGameplayStatics::DoesSaveGameExist(SlotName, SlotIndex))
+	{
+		SaveGameObject = UGameplayStatics::LoadGameFromSlot(SlotName, SlotIndex);
+	}
+	else
+	{
+		SaveGameObject = UGameplayStatics::CreateSaveGameObject(LoadScreenSaveGameClass);
+	}
+	ULoadScreenSaveGame* LoadScreenSaveGame = Cast<ULoadScreenSaveGame>(SaveGameObject);
+	return LoadScreenSaveGame;
+}
+
 // end Load Save
 
 
@@ -223,4 +239,57 @@ void AStoneGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 	Maps.Add(DefaultMapName, DefaultMap);
+
+	ULoadScreenSaveGame* Save = RetrieveInGameSaveData();
+	if (!Save)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneGameMode] No SaveGame available."));
+		return;
+	}
+
+	Save->MigrateIfNeeded();
+
+	// Ensure at least one settler exists (first-run).
+	if (Save->SavedSettlers.Num() == 0)
+	{
+		FSavedSettler NewSettler;
+		NewSettler.SettlerId = FGuid::NewGuid();
+		NewSettler.DisplayName = TEXT("Settler_01");
+
+		// Pick a spawn transform – simplest: use PlayerStartTag / any PlayerStart.
+		FTransform SpawnXform = FTransform::Identity;
+
+		AActor* ChosenStart = nullptr;
+		for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
+		{
+			if (DefaultPlayerStartTag.IsNone() || It->PlayerStartTag == DefaultPlayerStartTag)
+			{
+				ChosenStart = *It;
+				break;
+			}
+		}
+		if (ChosenStart)
+		{
+			SpawnXform = ChosenStart->GetActorTransform();
+		}
+
+		NewSettler.LastKnownTransform = SpawnXform;
+
+		Save->SavedSettlers.Add(NewSettler);
+
+		// Write back so next load is stable.
+		SaveInGameProgressData(Save);
+	}
+
+	UStoneRosterSubsystem* Roster = GetWorld()->GetSubsystem<UStoneRosterSubsystem>();
+	if (!Roster)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneGameMode] Missing StoneRosterSubsystem."));
+		return;
+	}
+
+	Roster->InitializeRoster(Save->SavedSettlers);
+
+	// Optional: spawn the first pawn immediately so you can click/inspect it.
+	Roster->GetOrSpawnSettlerPawn(Save->SavedSettlers[0].SettlerId);
 }

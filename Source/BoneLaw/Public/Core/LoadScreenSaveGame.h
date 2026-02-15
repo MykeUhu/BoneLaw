@@ -1,4 +1,4 @@
-﻿// Copyright by MykeUhu
+// Copyright by MykeUhu
 
 #pragma once
 
@@ -6,6 +6,7 @@
 #include "GameplayTagContainer.h"
 #include "Abilities/GameplayAbility.h"
 #include "GameFramework/SaveGame.h"
+#include "Data/StoneTypes.h"
 #include "LoadScreenSaveGame.generated.h"
 
 class UGameplayAbility;
@@ -50,34 +51,6 @@ struct FSavedMap
     TArray<FSavedActor> SavedActors;
 };
 
-USTRUCT(BlueprintType)
-struct FSavedAbility
-{
-    GENERATED_BODY()
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ClassDefaults")
-    TSubclassOf<UGameplayAbility> GameplayAbility;
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
-    FGameplayTag AbilityTag = FGameplayTag();
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
-    FGameplayTag AbilityStatus = FGameplayTag();
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
-    FGameplayTag AbilitySlot = FGameplayTag();
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
-    FGameplayTag AbilityType = FGameplayTag();
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
-    int32 AbilityLevel = 1;
-};
-
-inline bool operator==(const FSavedAbility& Left, const FSavedAbility& Right)
-{
-    return Left.AbilityTag.MatchesTagExact(Right.AbilityTag);
-}
 
 UCLASS()
 class BONELAW_API ULoadScreenSaveGame : public USaveGame
@@ -94,6 +67,9 @@ public:
 
     UPROPERTY()
     FString PlayerName = FString("Default Name");
+    
+    UPROPERTY()
+    TEnumAsByte<ESaveSlotStatus> SaveSlotStatus = Vacant;
 
     UPROPERTY()
     FString MapName = FString("Default Map Name");
@@ -104,10 +80,7 @@ public:
     UPROPERTY()
     FName PlayerStartTag;
 
-    UPROPERTY()
-    TEnumAsByte<ESaveSlotStatus> SaveSlotStatus = Vacant;
-
-    UPROPERTY()
+     UPROPERTY()
     bool bFirstTimeLoadIn = true;
     
     // --- Player ---
@@ -139,6 +112,12 @@ public:
 
     FSavedMap GetSavedMapWithMapName(const FString& InMapName);
     bool HasMap(const FString& InMapName);
+
+    /**
+     * Migrate legacy save data to the current schema, if needed.
+     * Call immediately after loading the save game object, before gameplay consumes it.
+     */
+    void MigrateIfNeeded();
     
     // --- “Run / Meta Progress” (dein Stone-Loop) ---
     UPROPERTY()
@@ -163,4 +142,40 @@ public:
 
     UPROPERTY()
     FGameplayTag FocusTag;
+    
+    // ========================================================================
+    // PHASE 2: SETTLER ROSTER + ASSIGNMENTS
+    // ========================================================================
+    
+    /** Save version for migration support. Increment when format changes. */
+    UPROPERTY()
+    int32 SaveVersion = 2;
+    
+    /** Roster of all settlers (Phase 2: multiple settlers with individual state). */
+    UPROPERTY()
+    TArray<FSavedSettler> SavedSettlers;
+
+    /** Runtime-built/basebuilding objects (schema-ready; may be empty in Phase 2). */
+    UPROPERTY()
+    TArray<FSavedBuildable> SavedBuildables;
+    
+    /** Open event context (if an event was interrupted during save). */
+    UPROPERTY()
+    FSavedOpenEventContext OpenEventContext;
+    
+    /** Active packs (for resume). */
+    UPROPERTY()
+    TArray<FName> ActivePackIds;
+    
+    /** Seen events (for pool management). */
+    UPROPERTY()
+    TSet<FName> SeenEventIds;
+    
+    // ========================================================================
+    // LEGACY FIELDS (kept temporarily for migration from SaveVersion 1)
+    // These fields are deprecated and will be removed in future versions.
+    // DO NOT USE in new code. Use SavedSettlers instead.
+    // ========================================================================
+    // NOTE: Existing fields above (Strength, Food, SavedAbilities, etc.) 
+    // are marked as LEGACY in migration code.
 };

@@ -1,4 +1,4 @@
-﻿// Copyright by MykeUhu
+// Copyright by MykeUhu
 
 #pragma once
 
@@ -70,6 +70,16 @@ public:
 	virtual void PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue) override;
 
 	TMap<FGameplayTag, TStaticFuncPtr<FGameplayAttribute()>> TagsToAttributes;
+	
+	/**
+	 * SSOT Helper: Convert gameplay tag to FGameplayAttribute.
+	 * Used for save/load and attribute persistence.
+	 * 
+	 * @param Tag - Attribute tag (e.g. Attributes.Vital.Health)
+	 * @param OutAttribute - Output attribute if found
+	 * @return true if tag maps to a valid attribute
+	 */
+	bool GetAttributeFromTag(const FGameplayTag& Tag, FGameplayAttribute& OutAttribute) const;
 	
 	/*
 	 * Primary Attributes

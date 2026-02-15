@@ -1,4 +1,4 @@
-﻿// Copyright by MykeUhu
+// Copyright by MykeUhu
 
 #include "AbilitySystem/StoneAttributeSet.h"
 
@@ -68,6 +68,25 @@ UStoneAttributeSet::UStoneAttributeSet()
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_SpiritualPractical, GetWorldlineSpiritualPracticalAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_XenoOpenFear, GetWorldlineXenoOpenFearAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_TabooLooseStrict, GetWorldlineTabooLooseStrictAttribute);
+}
+
+bool UStoneAttributeSet::GetAttributeFromTag(const FGameplayTag& Tag, FGameplayAttribute& OutAttribute) const
+{
+	if (!Tag.IsValid())
+	{
+		return false;
+	}
+	
+	// Look up function pointer in map
+	const auto* FuncPtr = TagsToAttributes.Find(Tag);
+	if (!FuncPtr)
+	{
+		return false;
+	}
+	
+	// Call function pointer to get the attribute
+	OutAttribute = (*FuncPtr)();
+	return OutAttribute.IsValid();
 }
 
 void UStoneAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

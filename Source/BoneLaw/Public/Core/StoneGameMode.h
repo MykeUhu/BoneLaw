@@ -4,10 +4,12 @@
 #include "GameFramework/GameModeBase.h"
 #include "StoneGameMode.generated.h"
 
+class UMVVM_LoadSlot;
 class ULoadScreenSaveGame;
 class USaveGame;
 class UStoneCharacterClassInfo;
 class UAbilityInfo;
+class AStoneBaseChar;
 
 UCLASS()
 class BONELAW_API AStoneGameMode : public AGameModeBase
@@ -24,11 +26,14 @@ public:
 	TObjectPtr<UAbilityInfo> AbilityInfo;
 	
 	// Load Save
-	ULoadScreenSaveGame* GetSaveSlotData(const FString& SlotName, int32 SlotIndex) const;
 	ULoadScreenSaveGame* RetrieveInGameSaveData();
 	void SaveInGameProgressData(ULoadScreenSaveGame* SaveObject);
 	void SaveWorldState(UWorld* World, const FString& DestinationMapAssetName = FString("")) const;
 	void LoadWorldState(UWorld* World) const;
+	
+	// new from Aura Tut
+	void SaveSlotData(UMVVM_LoadSlot* LoadSlot, int32 SlotIndex);
+	ULoadScreenSaveGame* GetSaveSlotData(const FString& SlotName, int32 SlotIndex) const;
 	
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<USaveGame> LoadScreenSaveGameClass;
@@ -55,6 +60,12 @@ public:
 	FString GetMapNameFromMapAssetName(const FString& MapAssetName) const;
 
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
+	
+	UPROPERTY(EditDefaultsOnly, Category="Stone|Settlers")
+	TSubclassOf<AStoneBaseChar> DefaultSettlerClass;
+	
+	UPROPERTY(EditDefaultsOnly, Category="Stone|Settlers")
+	FName DefaultSettlerStartTag = NAME_None;
 	
 protected:
 	virtual void BeginPlay() override;

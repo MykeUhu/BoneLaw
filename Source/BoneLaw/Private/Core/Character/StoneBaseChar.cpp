@@ -60,12 +60,27 @@ void AStoneBaseChar::InitAbilityActorInfo()
 
 void AStoneBaseChar::ApplyEffectToSelf(TSubclassOf<UGameplayEffect> GameplayEffectClass, float Level) const
 {
-	check(IsValid(GetAbilitySystemComponent()));
-	check(GameplayEffectClass);
+	if (!IsValid(GetAbilitySystemComponent()))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneBaseChar] ASC missing on %s"), *GetName());
+		return;
+	}
+
+	if (!GameplayEffectClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneBaseChar] Default GE not set on %s (%s). Set GAS|Defaults in the BP class defaults."),
+			*GetName(), *GetClass()->GetName());
+		return;
+	}
+
 	FGameplayEffectContextHandle ContextHandle = GetAbilitySystemComponent()->MakeEffectContext();
 	ContextHandle.AddSourceObject(this);
 	const FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponent()->MakeOutgoingSpec(GameplayEffectClass, Level, ContextHandle);
-	GetAbilitySystemComponent()->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), GetAbilitySystemComponent());
+
+	if (SpecHandle.IsValid())
+	{
+		GetAbilitySystemComponent()->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), GetAbilitySystemComponent());
+	}
 }
 
 void AStoneBaseChar::InitializeDefaultAttributes() const

@@ -3,14 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/Object.h"
+#include "Blueprint/UserWidget.h"
 #include "StoneLoadScreenWidget.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class BONELAW_API UStoneLoadScreenWidget : public UObject
+class BONELAW_API UStoneLoadScreenWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	
