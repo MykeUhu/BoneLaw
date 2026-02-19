@@ -9,7 +9,8 @@
 
 AStoneBaseChar::AStoneBaseChar()
 {
-	PrimaryActorTick.bCanEverTick = false; // event-driven; no per-frame
+	PrimaryActorTick.bCanEverTick = true;
+	const FStoneGameplayTags& GameplayTags = FStoneGameplayTags::Get();
 	bReplicates = true;
 }
 
@@ -60,34 +61,21 @@ void AStoneBaseChar::InitAbilityActorInfo()
 
 void AStoneBaseChar::ApplyEffectToSelf(TSubclassOf<UGameplayEffect> GameplayEffectClass, float Level) const
 {
-	if (!IsValid(GetAbilitySystemComponent()))
-	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneBaseChar] ASC missing on %s"), *GetName());
-		return;
-	}
-
-	if (!GameplayEffectClass)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneBaseChar] Default GE not set on %s (%s). Set GAS|Defaults in the BP class defaults."),
-			*GetName(), *GetClass()->GetName());
-		return;
-	}
-
+	check(IsValid(GetAbilitySystemComponent()));
+	check(GameplayEffectClass);
+	
 	FGameplayEffectContextHandle ContextHandle = GetAbilitySystemComponent()->MakeEffectContext();
 	ContextHandle.AddSourceObject(this);
 	const FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponent()->MakeOutgoingSpec(GameplayEffectClass, Level, ContextHandle);
-
-	if (SpecHandle.IsValid())
-	{
-		GetAbilitySystemComponent()->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), GetAbilitySystemComponent());
-	}
+	GetAbilitySystemComponent()->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), GetAbilitySystemComponent());
 }
 
 void AStoneBaseChar::InitializeDefaultAttributes() const
 {
-	// Applies on server (then replicated). Keep the same rule.
-	if (!HasAuthority()) return;
-
+	// NOTE: This is a fallback implementation if you use Default GE properties set in BP.
+	// The Aura pattern (and your project) typically uses StoneAbilitySystemLibrary::InitializeDefaultAttributes instead.
+	// This function is only called if you override it in subclasses AND set the GE properties in the BP.
+	
 	ApplyEffectToSelf(DefaultPrimaryAttributes, 1.f);
 	ApplyEffectToSelf(DefaultSecondaryAttributes, 1.f);
 	ApplyEffectToSelf(DefaultVitalAttributes, 1.f);

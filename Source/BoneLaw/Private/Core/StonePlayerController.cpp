@@ -2,7 +2,6 @@
 
 // Project
 #include "Core/StoneGameplayTags.h"
-#include "Core/StoneGameMode.h"
 #include "Runtime/StoneRunSubsystem.h"
 #include "Runtime/StoneActionSubsystem.h"
 #include "AbilitySystem/StoneAbilitySystemComponent.h"
@@ -20,6 +19,7 @@
 #include "InputActionValue.h"
 #include "InputMappingContext.h"
 #include "Core/StonePlayerState.h"
+#include "Core/GameMode/StoneGameModeBase.h"
 #include "UI/HUD/StoneHUD.h"
 
 AStonePlayerController::AStonePlayerController()
@@ -111,6 +111,7 @@ void AStonePlayerController::SetupInputComponent()
 	UE_LOG(LogTemp, Log, TEXT("[StonePC] Enhanced Input Setup Complete"));
 }
 
+/*
 void AStonePlayerController::StartStoneRun()
 {
 	UStoneRunSubsystem* RunSS = GetGameInstance() ? GetGameInstance()->GetSubsystem<UStoneRunSubsystem>() : nullptr;
@@ -122,7 +123,7 @@ void AStonePlayerController::StartStoneRun()
 	FName StartPackToUse = DefaultStartPack;
 	if (StartPackToUse.IsNone())
 	{
-		if (const AStoneGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AStoneGameMode>() : nullptr)
+		if (const AStoneGameModeBase* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AStoneGameModeBase>() : nullptr)
 		{
 			StartPackToUse = GM->DefaultStartPack;
 		}
@@ -141,7 +142,9 @@ void AStonePlayerController::StartStoneRun()
 	UE_LOG(LogTemp, Warning, TEXT("[StonePC] StartStoneRun: Pack=%s"), *StartPackToUse.ToString());
 	RunSS->StartNewRun(Config);
 }
+*/
 
+/*
 void AStonePlayerController::SetSimSpeed(float NewSpeed)
 {
 	SimSpeed = FMath::Clamp(NewSpeed, 0.f, 10.f);
@@ -151,7 +154,7 @@ void AStonePlayerController::SetSimSpeed(float NewSpeed)
 		RunSS->SetSimulationSpeed(SimSpeed);
 	}
 }
-
+*/
 void AStonePlayerController::StartExploreExpedition(float DurationSeconds, float MinEventGapSeconds, float MaxEventGapSeconds, bool bTriggerFirstEventImmediately)
 {
 	UWorld* World = GetWorld();
@@ -491,7 +494,7 @@ void AStonePlayerController::OnRadialRecipeSelected(FGameplayTag RecipeTag)
 	UE_LOG(LogTemp, Log, TEXT("[StonePC] OnRadialRecipeSelected: %s"), *RecipeTag.ToString());
 
 	// Close menu (Blueprint will handle UI)
-	CloseRadialBuildMenu();
+	//CloseRadialBuildMenu();
 
 	// Start build placement
 	StartBuildPlacement(RecipeTag);
@@ -626,14 +629,14 @@ void AStonePlayerController::Input_ToggleBuildMenu()
 	if (CurrentCameraState.MatchesTagExact(StoneTags.State_Camera_UI))
 	{
 		// Close menu
-		CloseRadialBuildMenu();
+		//CloseRadialBuildMenu();
 		SetCameraState(StoneTags.State_Camera_Free);
 	}
 	else if (CurrentCameraState.MatchesTagExact(StoneTags.State_Camera_Free) || 
 	         CurrentCameraState.MatchesTagExact(StoneTags.State_Camera_Follow))
 	{
 		// Open menu
-		OpenRadialBuildMenu();
+		//OpenRadialBuildMenu();
 		SetCameraState(StoneTags.State_Camera_UI);
 	}
 }
@@ -689,7 +692,7 @@ void AStonePlayerController::Input_Escape()
 	}
 	else if (CurrentCameraState.MatchesTagExact(StoneTags.State_Camera_UI))
 	{
-		CloseRadialBuildMenu();
+		//CloseRadialBuildMenu();
 		SetCameraState(StoneTags.State_Camera_Free);
 	}
 	else if (CurrentCameraState.MatchesTagExact(StoneTags.State_Camera_Follow))

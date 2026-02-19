@@ -21,24 +21,21 @@ class BONELAW_API AStonePlayerController : public APlayerController
 
 public:
 	AStonePlayerController();
-	
-	virtual void BeginPlay() override;
 	virtual void PlayerTick(float DeltaTime) override;
+
+protected:
+	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 
+private:
 	/** SSOT: Start-Pack ID hier setzen (z.B. "Pack_Core"). */
 	UPROPERTY(EditDefaultsOnly, Category="Stone|Run")
 	FName DefaultStartPack = NAME_None;
-
-	/** UI ruft genau diese Funktion auf. */
-	UFUNCTION(BlueprintCallable, Category="Stone|Run")
-	void StartStoneRun();
 	
-	UFUNCTION(BlueprintCallable, Category="Stone|Sim")
-	void SetSimSpeed(float NewSpeed);
+	UPROPERTY()
+	TObjectPtr<UStoneAbilitySystemComponent> StoneAbilitySystemComponent;
 
-	UFUNCTION(BlueprintPure, Category="Stone|Sim")
-	float GetSimSpeed() const { return SimSpeed; }
+	UStoneAbilitySystemComponent* GetASC();
 
 	// === Actions / Expeditions ===
 	// Simple demo action: send the tribe out to explore using a pack (e.g. Pack_Explore_01)
@@ -79,13 +76,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Stone|Camera")
 	void StopFollowing();
-
-	// Blueprint-callable: Open/Close radial build menu
-	UFUNCTION(BlueprintImplementableEvent, Category="Stone|Build")
-	void OpenRadialBuildMenu();
-
-	UFUNCTION(BlueprintImplementableEvent, Category="Stone|Build")
-	void CloseRadialBuildMenu();
 
 	// Blueprint event: Called when build recipe selected from radial menu
 	UFUNCTION(BlueprintCallable, Category="Stone|Build")
@@ -189,11 +179,7 @@ protected:
 	virtual void OnRep_PlayerState() override;
 
 private:
-	UPROPERTY()
-	TObjectPtr<UStoneAbilitySystemComponent> StoneAbilitySystemComponent;
-	
-	UStoneAbilitySystemComponent* GetASC();
-	
+
 	UPROPERTY()
 	float SimSpeed = 1.f;
 	

@@ -36,7 +36,9 @@ public class BoneLaw : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			// Used by StoneContentValidator (FAssetRegistryModule, FARFilter)
-			"AssetRegistry", "Foliage",
+			"AIModule", 
+			"AssetRegistry", 
+			"Foliage",
 		});
 	}
 }

@@ -3,6 +3,8 @@
 
 #include "UI/HUD/StoneHUD.h"
 
+#include "UI/ViewModel/MVVM_SettlerScreen.h"
+#include "UI/Widget/StoneSettlerScreenWidget.h"
 #include "UI/Widget/StoneUserWidget.h"
 #include "UI/WidgetController/StoneOverlayWidgetController.h"
 #include "UI/WidgetController/StoneStatsWidgetController.h"
@@ -67,5 +69,21 @@ void AStoneHUD::InitOverlay(APlayerController* PC, APlayerState* PS, UAbilitySys
 	OverlayWidget->SetWidgetController(WidgetController);
 	WidgetController->BroadcastInitialValues();
 	OverlayWidget->AddToViewport();
+}
+
+void AStoneHUD::BeginPlay()
+{
+	Super::BeginPlay();
+	
+	SettlerScreenViewModel = NewObject<UMVVM_SettlerScreen>(this, SettlerScreenViewModelClass);
+	checkf(SettlerScreenViewModelClass, TEXT("SettlerScreenViewModelClass not set in BP_StoneHUD"));
+	check(SettlerScreenViewModel);
+	SettlerScreenViewModel->InitializeSettlerSlots();
+
+	SettlerScreenWidget = CreateWidget<UStoneSettlerScreenWidget>(GetWorld(), SettlerScreenWidgetClass);
+	SettlerScreenWidget->AddToViewport();
+	SettlerScreenWidget->BlueprintInitializeWidget();
+
+	//SettlerScreenViewModel->LoadData();
 }
 

@@ -34,6 +34,20 @@ public:
 	UPROPERTY()
 	int32 LoadSlotIndex = 0;
 	
+	UFUNCTION(BlueprintPure, Category="Save")
+	bool HasActiveLoadSlot() const
+	{
+		return !LoadSlotName.IsEmpty() && LoadSlotIndex >= 0;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Save")
+	void SetActiveLoadSlot(const FString& InSlotName, int32 InSlotIndex, FName InPlayerStartTag)
+	{
+		LoadSlotName = InSlotName;
+		LoadSlotIndex = InSlotIndex;
+		PlayerStartTag = InPlayerStartTag;
+	}
+	
 private:
 	FString GetRunSlotName() const { return TEXT("StoneRun_Current"); }
 	int32 GetRunUserIndex() const { return 0; }

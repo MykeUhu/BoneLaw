@@ -13,9 +13,9 @@
 
 // Optional: falls AbilityInfo im GameMode hängt
 #include "Core/StoneAbilityTypes.h"
-#include "Core/StoneGameMode.h"
 #include "Core/LoadScreenSaveGame.h"
 #include "Core/StonePlayerState.h"
+#include "Core/GameMode/StoneGameModeBase.h"
 #include "UI/HUD/StoneHUD.h"
 
 
@@ -154,14 +154,14 @@ void UStoneAbilitySystemLibrary::GiveStartupAbilities(const UObject* WorldContex
 
 UStoneCharacterClassInfo* UStoneAbilitySystemLibrary::GetCharacterClassInfo(const UObject* WorldContextObject)
 {
-	const AStoneGameMode* StoneGameMode = Cast<AStoneGameMode>(UGameplayStatics::GetGameMode(WorldContextObject));
+	const AStoneGameModeBase* StoneGameMode = Cast<AStoneGameModeBase>(UGameplayStatics::GetGameMode(WorldContextObject));
 	if (StoneGameMode == nullptr) return nullptr;
 	return StoneGameMode->CharacterClassInfo;
 }
 
 UAbilityInfo* UStoneAbilitySystemLibrary::GetAbilityInfo(const UObject* WorldContextObject)
 {
-	const AStoneGameMode* StoneGameMode = Cast<AStoneGameMode>(UGameplayStatics::GetGameMode(WorldContextObject));
+	const AStoneGameModeBase* StoneGameMode = Cast<AStoneGameModeBase>(UGameplayStatics::GetGameMode(WorldContextObject));
 	if (StoneGameMode == nullptr) return nullptr;
 	return StoneGameMode->AbilityInfo;
 }

@@ -7,6 +7,8 @@
 #include "GameFramework/HUD.h"
 #include "StoneHUD.generated.h"
 
+class UMVVM_SettlerScreen;
+class UStoneSettlerScreenWidget;
 class UAttributeSet;
 class UAbilitySystemComponent;
 class UStoneUserWidget;
@@ -24,6 +26,22 @@ public:
 	UStoneStatsWidgetController* GetStatsWidgetController(const FWidgetControllerParams& WCParams);
 
 	void InitOverlay(APlayerController* PC, APlayerState* PS, UAbilitySystemComponent* ASC, UAttributeSet* AS);
+	
+	// MVVM
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<UUserWidget>SettlerScreenWidgetClass;
+	
+	UPROPERTY(BlueprintReadOnly)
+	TObjectPtr<UStoneSettlerScreenWidget> SettlerScreenWidget;
+	
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<UMVVM_SettlerScreen> SettlerScreenViewModelClass;
+	
+	UPROPERTY(BlueprintReadOnly)
+	TObjectPtr<UMVVM_SettlerScreen> SettlerScreenViewModel;
+	
+protected:
+	virtual void BeginPlay() override;
 
 private:
 	UPROPERTY()

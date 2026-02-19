@@ -25,10 +25,8 @@ public:
 	virtual EStoneCharacterClass GetCharacterClass_Implementation() override;
 	virtual FOnASCRegistered& GetOnASCRegisteredDelegate() override;
 	
-	virtual void SaveProgress_Implementation(const FName& CheckpointTag) override;
 	// end Interface
 	
 private:
-	void LoadProgress();
 	virtual void InitAbilityActorInfo() override;
 };
