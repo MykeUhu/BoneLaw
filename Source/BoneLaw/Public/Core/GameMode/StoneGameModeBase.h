@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
@@ -11,6 +11,7 @@ class UStoneCharacterClassInfo;
 class UAbilityInfo;
 class AStoneBaseChar;
 class UStoneMapConfigDataAsset;
+class UStoneSettlerNameDataAsset;
 
 UCLASS()
 class BONELAW_API AStoneGameModeBase : public AGameModeBase
@@ -71,6 +72,10 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category="Stone|Settlers")
 	FName DefaultSettlerStartTag = NAME_None;
+
+	/** DataAsset for generating settler names (replaces hardcoded arrays). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Stone|Settlers")
+	TObjectPtr<UStoneSettlerNameDataAsset> SettlerNameDataAsset;
 
 protected:
 	virtual void BeginPlay() override;

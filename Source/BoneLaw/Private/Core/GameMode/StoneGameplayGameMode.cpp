@@ -1,8 +1,9 @@
-﻿#include "Core/GameMode/StoneGameplayGameMode.h"
+#include "Core/GameMode/StoneGameplayGameMode.h"
 
 #include "EngineUtils.h"
 #include "Core/LoadScreenSaveGame.h"
 #include "Core/StoneGameInstance.h"
+#include "Data/StoneSettlerNameDataAsset.h"
 #include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
 #include "Runtime/StoneRosterSubsystem.h"
@@ -43,7 +44,17 @@ void AStoneGameplayGameMode::BeginPlay()
 	{
 		FSavedSettler NewSettler;
 		NewSettler.SettlerId = FGuid::NewGuid();
-		NewSettler.DisplayName = TEXT("Starter_Settler");
+		
+		// Generate name from DataAsset (clean, no hardcoded names)
+		if (SettlerNameDataAsset && SettlerNameDataAsset->IsValid())
+		{
+			NewSettler.DisplayName = SettlerNameDataAsset->GenerateRandomName();
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[StoneGameplayGameMode] SettlerNameDataAsset not configured. Using fallback name."));
+			NewSettler.DisplayName = TEXT("Starter_Settler");
+		}
 
 		const FName StarterTag = DefaultSettlerStartTag.IsNone() ? FName("Starter") : DefaultSettlerStartTag;
 		FTransform StarterXform = FTransform::Identity;

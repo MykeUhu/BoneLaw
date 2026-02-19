@@ -207,9 +207,16 @@ void UMVVM_SettlerScreen::RefreshSlotsFromRoster(UObject* WorldContextObject)
 
 		if (UMVVM_SettlerSlot* SlotVM = GetSettlerSlotViewModelByIndex(i))
 		{
-			SlotVM->SetOccupied(Id.ToString(EGuidFormats::DigitsWithHyphens), Info.DisplayName);
+			AStoneBaseChar* SettlerPawn = Roster->GetOrSpawnSettlerPawn(Id);
+
+			SlotVM->SetOccupied(
+				Id.ToString(EGuidFormats::DigitsWithHyphens),
+				Info.DisplayName,
+				SettlerPawn
+			);
 		}
 	}
+
 
 	OnSettlerListRebuilt.Broadcast();
 

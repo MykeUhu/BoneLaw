@@ -283,11 +283,6 @@ void UStoneRosterSubsystem::ApplySettlerStateToPawn(AStoneBaseChar* Pawn, const 
 	SettlerPawn->ApplySavedState(SettlerData);
 }
 
-
-// TODO make dataasset odr DB for this..!
-static const TArray<FString> Names = { TEXT("Ugga"), TEXT("Higg"), TEXT("Borga"), TEXT("Tukka"), TEXT("Rugg"), TEXT("Moga") };
-
-
 FSavedSettler UStoneRosterSubsystem::GatherSettlerStateFromPawn(const FGuid& SettlerId, AStoneBaseChar* Pawn) const
 {
 	FSavedSettler Gathered;
