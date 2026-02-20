@@ -1,4 +1,4 @@
-﻿// Copyright by MykeUhu
+// Copyright by MykeUhu
 
 #pragma once
 
@@ -7,10 +7,11 @@
 #include "MVVM_SettlerSlot.generated.h"
 
 class AStoneBaseChar;
+class UMVVM_SettlerScreen;
 class UAbilitySystemComponent;
 struct FOnAttributeChangeData;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSettlerSlotSwitcherIndex, int32, WidgetSwitcherIndex);
+/** Slot-level event fires with SlotIndex for backward compat (Screen forwards as GUID). */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSettlerSlotRequestShowDetails, int32, SlotIndex, AStoneBaseChar*, SettlerActor);
 
 UENUM(BlueprintType)
@@ -29,7 +30,8 @@ public:
 	// -------------------------
 	// Slot lifecycle
 	// -------------------------
-	void InitializeSlot();
+	UFUNCTION(BlueprintCallable, Category="Settlers")
+	void InitializeSlot(const FGuid& SettlerGuid, UMVVM_SettlerScreen* ScreenVM);
 
 	void SetOccupied(const FString& InGuid, const FString& InName, AStoneBaseChar* InSettler);
 	void ClearSlot();
@@ -60,14 +62,19 @@ public:
 	FString GetSettlerSlotName() const { return SettlerSlotName; }
 	int32 GetMoodWidgetIndex() const { return MoodWidgetIndex; }
 
+	/** Parse cached GUID string to FGuid (for fast map lookups). */
+	UFUNCTION(BlueprintPure, Category="Settlers")
+	FGuid GetSettlerGuidAsGuid() const;
+
+	/** Check if this slot is occupied (has valid settler GUID). */
+	UFUNCTION(BlueprintPure, Category="Settlers")
+	bool IsOccupied() const { return SlotStatus == ESettlerSlotStatus::Occupied; }
+
 	// -------------------------
 	// Public State
 	// -------------------------
 	UPROPERTY()
 	ESettlerSlotStatus SlotStatus = ESettlerSlotStatus::Empty;
-
-	UPROPERTY(BlueprintAssignable)
-	FOnSettlerSlotSwitcherIndex OnSettlerSlotSwitcherIndex;
 
 	UPROPERTY()
 	int32 SlotIndex = 0;

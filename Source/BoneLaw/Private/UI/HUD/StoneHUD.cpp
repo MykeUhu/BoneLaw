@@ -74,16 +74,39 @@ void AStoneHUD::InitOverlay(APlayerController* PC, APlayerState* PS, UAbilitySys
 void AStoneHUD::BeginPlay()
 {
 	Super::BeginPlay();
-	
-	SettlerScreenViewModel = NewObject<UMVVM_SettlerScreen>(this, SettlerScreenViewModelClass);
+
+	// ---- UI only on owning client ----
+	APlayerController* PC = GetOwningPlayerController();
+	if (!PC || !PC->IsLocalController())
+	{
+		return;
+	}
+
+	if (GetNetMode() == NM_DedicatedServer)
+	{
+		return;
+	}
+
 	checkf(SettlerScreenViewModelClass, TEXT("SettlerScreenViewModelClass not set in BP_StoneHUD"));
-	check(SettlerScreenViewModel);
-	SettlerScreenViewModel->InitializeSettlerSlots();
+	checkf(SettlerScreenWidgetClass, TEXT("SettlerScreenWidgetClass not set in BP_StoneHUD"));
 
-	SettlerScreenWidget = CreateWidget<UStoneSettlerScreenWidget>(GetWorld(), SettlerScreenWidgetClass);
-	SettlerScreenWidget->AddToViewport();
-	SettlerScreenWidget->BlueprintInitializeWidget();
+	// ViewModel must exist BEFORE widget tries to find it
+	if (!SettlerScreenViewModel)
+	{
+		SettlerScreenViewModel = NewObject<UMVVM_SettlerScreen>(this, SettlerScreenViewModelClass);
+		check(SettlerScreenViewModel);
+	}
 
-	//SettlerScreenViewModel->LoadData();
+	// Create the widget WITH owning player (critical for GetHUD/GetOwningPlayer paths)
+	if (!SettlerScreenWidget || !SettlerScreenWidget->IsInViewport())
+	{
+		SettlerScreenWidget = CreateWidget<UStoneSettlerScreenWidget>(PC, SettlerScreenWidgetClass);
+		check(SettlerScreenWidget);
+
+		SettlerScreenWidget->AddToViewport();
+
+		// Keep your existing BP init trigger
+		SettlerScreenWidget->BlueprintInitializeWidget();
+	}
 }
 

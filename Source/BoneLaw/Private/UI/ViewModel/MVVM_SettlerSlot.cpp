@@ -1,16 +1,32 @@
-﻿// Copyright by MykeUhu
+// Copyright by MykeUhu
 
 #include "UI/ViewModel/MVVM_SettlerSlot.h"
 
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/StoneAttributeSet.h"
+#include "UI/ViewModel/MVVM_SettlerScreen.h"
 #include "Core/Character/StoneBaseChar.h"
 #include "GameplayEffectTypes.h"
 
-void UMVVM_SettlerSlot::InitializeSlot()
+void UMVVM_SettlerSlot::InitializeSlot(const FGuid& SettlerGuid, UMVVM_SettlerScreen* ScreenVM)
 {
-	const int32 Index = (SlotStatus == ESettlerSlotStatus::Occupied) ? 1 : 0;
-	OnSettlerSlotSwitcherIndex.Broadcast(Index);
+	if (!ScreenVM)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[SettlerSlot] InitializeSlot failed: ScreenVM is null"));
+		return;
+	}
+
+	const FString ResolvedSettlerName = ScreenVM->GetSettlerNameByGuid(SettlerGuid);
+	AStoneBaseChar* ResolvedSettlerPawn = ScreenVM->GetSettlerPawnByGuid(SettlerGuid);
+
+	SetOccupied(
+		SettlerGuid.ToString(EGuidFormats::DigitsWithHyphens),
+		ResolvedSettlerName,
+		ResolvedSettlerPawn
+	);
+
+	UE_LOG(LogTemp, Log, TEXT("[SettlerSlot] Initialized: %s (%s)"),
+		*ResolvedSettlerName, *SettlerGuid.ToString());
 }
 
 // -------------------------
@@ -26,8 +42,6 @@ void UMVVM_SettlerSlot::SetOccupied(const FString& InGuid, const FString& InName
 
 	SettlerActorWeak = InSettler;
 	BindToSettler(InSettler);
-
-	InitializeSlot();
 }
 
 void UMVVM_SettlerSlot::ClearSlot()
@@ -41,8 +55,6 @@ void UMVVM_SettlerSlot::ClearSlot()
 	SetSettlerGUID(TEXT(""));
 	SetSettlerName(TEXT(""));
 	SetMoodWidgetIndex(2);
-
-	InitializeSlot();
 }
 
 void UMVVM_SettlerSlot::RequestShowDetails()
@@ -52,6 +64,17 @@ void UMVVM_SettlerSlot::RequestShowDetails()
 	{
 		OnRequestShowDetails.Broadcast(SlotIndex, Actor);
 	}
+}
+
+// -------------------------
+// MVVM getters (with parsing)
+// -------------------------
+
+FGuid UMVVM_SettlerSlot::GetSettlerGuidAsGuid() const
+{
+	FGuid Result;
+	FGuid::Parse(SettlerGUID, Result);
+	return Result;
 }
 
 // -------------------------
