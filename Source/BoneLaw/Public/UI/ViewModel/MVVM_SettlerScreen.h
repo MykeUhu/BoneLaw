@@ -12,7 +12,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSettlerListRebuilt);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSettlerSelected, FGuid, SettlerId);
 
 /** GUID-based detail request (SlotIndex is legacy, GUID is primary). */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSettlerRequestShowDetails, FGuid, SettlerGuid, class AStoneBaseChar*, SettlerActor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSettlerRequestShowDetails, FGuid, SettlerGuid, class AStoneSettlerChar*, SettlerChar);
 
 class UStoneRosterSubsystem;
 class UMVVM_SettlerSlot;
@@ -51,28 +51,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Settlers")
 	AStoneBaseChar* GetSettlerPawnByGuid(const FGuid& SettlerId);
 
-
-	// -------------------------
-	// ViewModel Registration (Blueprint-driven)
-	// -------------------------
-
-	/** Register a slot ViewModel for GUID-based lookups. Call from Blueprint after creating slot VM. */
-	UFUNCTION(BlueprintCallable, Category="Settlers")
-	void RegisterSlotViewModel(const FGuid& SettlerGuid, UMVVM_SettlerSlot* SlotVM);
-
-	/** Unregister slot ViewModel. */
-	UFUNCTION(BlueprintCallable, Category="Settlers")
-	void UnregisterSlotViewModel(const FGuid& SettlerGuid);
-
-	/** Get registered slot ViewModel by settler GUID (for cross-widget lookups). */
-	UFUNCTION(BlueprintPure, Category="Settlers")
-	UMVVM_SettlerSlot* GetSlotViewModelBySettlerGuid(const FGuid& SettlerId) const;
-
 private:
-	/** Internal slot-to-GUID map for fast lookups. Blueprint populates this via RegisterSlotViewModel(). */
-	UPROPERTY()
-	TMap<FGuid, TObjectPtr<UMVVM_SettlerSlot>> SlotViewModelsByGuid;
-
 	/** Cached settler GUIDs from last roster refresh (for index-based lookups). */
 	UPROPERTY()
 	TArray<FGuid> CachedSettlerGuids;
@@ -102,7 +81,7 @@ public:
 
 	/** Broadcast detail request by GUID (called from Blueprint slot widgets). */
 	UFUNCTION(BlueprintCallable, Category="Settlers")
-	void RequestShowDetails(const FGuid& SettlerGuid, AStoneBaseChar* SettlerActor);
+	void RequestShowDetails(const FGuid& SettlerGuid, AStoneSettlerChar* SettlerChar);
 
 private:
 	UFUNCTION()

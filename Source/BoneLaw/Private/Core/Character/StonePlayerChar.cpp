@@ -56,12 +56,30 @@ void AStonePlayerChar::InitAbilityActorInfo()
 {
 	AStonePlayerState* StonePlayerState = GetPlayerState<AStonePlayerState>();
 	check(StonePlayerState);
+
 	StonePlayerState->GetAbilitySystemComponent()->InitAbilityActorInfo(StonePlayerState, this);
 	Cast<UStoneAbilitySystemComponent>(StonePlayerState->GetAbilitySystemComponent())->AbilityActorInfoSet();
+
 	AbilitySystemComponent = StonePlayerState->GetAbilitySystemComponent();
 	AttributeSet = StonePlayerState->GetAttributeSet();
+
+	// ✅ IMPORTANT: initialize defaults on the server (Aura pattern)
+	if (HasAuthority())
+	{
+		static bool bDidInitDefaults = false; // (better: make this a member bool)
+		if (!bDidInitDefaults)
+		{
+			UStoneAbilitySystemLibrary::InitializeDefaultAttributes(
+				this,
+				CharacterClass,
+				StonePlayerState->GetPlayerLevel(),
+				AbilitySystemComponent
+			);
+			bDidInitDefaults = true;
+		}
+	}
+
 	OnAscRegistered.Broadcast(AbilitySystemComponent);
-	//AbilitySystemComponent->RegisterGameplayTagEvent(FStoneGameplayTags::Get().Debuff_Stun, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &AStonePlayerChar::StunTagChanged);
 
 	if (AStonePlayerController* StonePlayerController = Cast<AStonePlayerController>(GetController()))
 	{

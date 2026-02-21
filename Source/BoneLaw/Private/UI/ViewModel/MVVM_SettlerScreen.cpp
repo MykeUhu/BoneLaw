@@ -64,31 +64,9 @@ void UMVVM_SettlerScreen::SetNumSettlers(int32 InNumSettlers)
 // ViewModel Registration
 // -------------------------
 
-void UMVVM_SettlerScreen::RegisterSlotViewModel(const FGuid& SettlerGuid, UMVVM_SettlerSlot* SlotVM)
+void UMVVM_SettlerScreen::RequestShowDetails(const FGuid& SettlerGuid, AStoneSettlerChar* SettlerChar)
 {
-	if (SettlerGuid.IsValid() && SlotVM)
-	{
-		SlotViewModelsByGuid.Add(SettlerGuid, SlotVM);
-	}
-}
-
-void UMVVM_SettlerScreen::UnregisterSlotViewModel(const FGuid& SettlerGuid)
-{
-	SlotViewModelsByGuid.Remove(SettlerGuid);
-}
-
-UMVVM_SettlerSlot* UMVVM_SettlerScreen::GetSlotViewModelBySettlerGuid(const FGuid& SettlerId) const
-{
-	if (const TObjectPtr<UMVVM_SettlerSlot>* Found = SlotViewModelsByGuid.Find(SettlerId))
-	{
-		return *Found;
-	}
-	return nullptr;
-}
-
-void UMVVM_SettlerScreen::RequestShowDetails(const FGuid& SettlerGuid, AStoneBaseChar* SettlerActor)
-{
-	OnRequestShowDetails.Broadcast(SettlerGuid, SettlerActor);
+	OnRequestShowDetails.Broadcast(SettlerGuid, SettlerChar);
 }
 
 // end Data API

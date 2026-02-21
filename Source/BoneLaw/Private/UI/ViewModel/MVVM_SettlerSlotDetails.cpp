@@ -6,29 +6,54 @@
 #include "AbilitySystem/StoneAttributeSet.h"
 #include "Core/Character/StoneBaseChar.h"
 #include "GameplayEffectTypes.h"
+#include "Core/Character/StoneSettlerChar.h"
 
 // -------------------------
 // Details lifecycle
 // -------------------------
 
-void UMVVM_SettlerSlotDetails::BindToSettler(AStoneBaseChar* InSettler)
+void UMVVM_SettlerSlotDetails::BindToSettler(const FGuid& SettlerId, AStoneSettlerChar* SettlerActor)
 {
+	// Always clean previous binding first (important if user clicks quickly between slots)
 	Unbind();
 
-	BoundSettler = InSettler;
+	BoundSettlerId = SettlerId;
+	BoundSettler = SettlerActor;
+
 	if (!BoundSettler)
 	{
 		return;
 	}
 
-	// If ASC exists already, bind now, else wait for OnAscRegistered
+	// Try immediate ASC
 	if (UAbilitySystemComponent* ASC = BoundSettler->GetAbilitySystemComponent())
 	{
 		HandleASCRegistered(ASC);
 		return;
 	}
 
+	// ASC not ready yet -> wait for registration (Aura-like pattern)
 	AscRegisteredHandle = BoundSettler->OnAscRegistered.AddUObject(this, &UMVVM_SettlerSlotDetails::HandleASCRegistered);
+
+	// Optional: reset displayed values while waiting
+	SetHealth(0.f);
+	SetMaxHealth(0.f);
+	SetHealthPct(0.f);
+
+	SetFood(0.f);
+	SetMaxFood(0.f);
+	SetFoodPct(0.f);
+
+	SetWater(0.f);
+	SetMaxWater(0.f);
+	SetWaterPct(0.f);
+
+	SetWarmth(0.f);
+	SetWarmthPct(0.f);
+
+	SetMorale(0.f);
+	SetMaxMorale(0.f);
+	SetMoralePct(0.f);
 }
 
 void UMVVM_SettlerSlotDetails::Unbind()
@@ -44,6 +69,28 @@ void UMVVM_SettlerSlotDetails::Unbind()
 
 	BoundASC = nullptr;
 	BoundSettler = nullptr;
+
+	// Reset MVVM fields (so UI doesn't keep stale values)
+	SetHealth(0.f);
+	SetMaxHealth(0.f);
+	SetHealthPct(0.f);
+
+	SetFood(0.f);
+	SetMaxFood(0.f);
+	SetFoodPct(0.f);
+
+	SetWater(0.f);
+	SetMaxWater(0.f);
+	SetWaterPct(0.f);
+
+	SetWarmth(0.f);
+	SetWarmthPct(0.f);
+
+	SetMorale(0.f);
+	SetMaxMorale(0.f);
+	SetMoralePct(0.f);
+
+	BoundSettlerId.Invalidate();
 }
 
 void UMVVM_SettlerSlotDetails::BeginDestroy()
@@ -63,17 +110,21 @@ void UMVVM_SettlerSlotDetails::HandleASCRegistered(UAbilitySystemComponent* InAS
 		return;
 	}
 
-	// Stop waiting for ASC
+	// Stop waiting
 	if (BoundSettler && AscRegisteredHandle.IsValid())
 	{
 		BoundSettler->OnAscRegistered.Remove(AscRegisteredHandle);
 		AscRegisteredHandle.Reset();
 	}
 
+	// If we were already bound to something else, make sure delegates are gone.
+	UnbindAttributeDelegates();
+
 	BoundASC = InASC;
 
-	// Initial push
-	if (const UStoneAttributeSet* AS = BoundASC->GetSet<UStoneAttributeSet>())
+	// Initial push (read current values)
+	const UStoneAttributeSet* AS = BoundASC->GetSet<UStoneAttributeSet>();
+	if (AS)
 	{
 		SetHealth(AS->GetHealth());
 		SetMaxHealth(AS->GetMaxHealth());
@@ -117,33 +168,33 @@ void UMVVM_SettlerSlotDetails::BindAttributeDelegates()
 		return;
 	}
 
-	const FGameplayAttribute A_Health = UStoneAttributeSet::GetHealthAttribute();
-	const FGameplayAttribute A_MaxHealth = UStoneAttributeSet::GetMaxHealthAttribute();
+	const FGameplayAttribute A_Health     = UStoneAttributeSet::GetHealthAttribute();
+	const FGameplayAttribute A_MaxHealth  = UStoneAttributeSet::GetMaxHealthAttribute();
 
-	const FGameplayAttribute A_Food = UStoneAttributeSet::GetFoodAttribute();
-	const FGameplayAttribute A_MaxFood = UStoneAttributeSet::GetMaxFoodAttribute();
+	const FGameplayAttribute A_Food       = UStoneAttributeSet::GetFoodAttribute();
+	const FGameplayAttribute A_MaxFood    = UStoneAttributeSet::GetMaxFoodAttribute();
 
-	const FGameplayAttribute A_Water = UStoneAttributeSet::GetWaterAttribute();
-	const FGameplayAttribute A_MaxWater = UStoneAttributeSet::GetMaxWaterAttribute();
+	const FGameplayAttribute A_Water      = UStoneAttributeSet::GetWaterAttribute();
+	const FGameplayAttribute A_MaxWater   = UStoneAttributeSet::GetMaxWaterAttribute();
 
-	const FGameplayAttribute A_Warmth = UStoneAttributeSet::GetWarmthAttribute();
+	const FGameplayAttribute A_Warmth     = UStoneAttributeSet::GetWarmthAttribute();
 
-	const FGameplayAttribute A_Morale = UStoneAttributeSet::GetMoraleAttribute();
-	const FGameplayAttribute A_MaxMorale = UStoneAttributeSet::GetMaxMoraleAttribute();
+	const FGameplayAttribute A_Morale     = UStoneAttributeSet::GetMoraleAttribute();
+	const FGameplayAttribute A_MaxMorale  = UStoneAttributeSet::GetMaxMoraleAttribute();
 
-	HealthChangedHandle = BoundASC->GetGameplayAttributeValueChangeDelegate(A_Health).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleHealthChanged);
-	MaxHealthChangedHandle = BoundASC->GetGameplayAttributeValueChangeDelegate(A_MaxHealth).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleMaxHealthChanged);
+	HealthChangedHandle     = BoundASC->GetGameplayAttributeValueChangeDelegate(A_Health).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleHealthChanged);
+	MaxHealthChangedHandle  = BoundASC->GetGameplayAttributeValueChangeDelegate(A_MaxHealth).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleMaxHealthChanged);
 
-	FoodChangedHandle = BoundASC->GetGameplayAttributeValueChangeDelegate(A_Food).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleFoodChanged);
-	MaxFoodChangedHandle = BoundASC->GetGameplayAttributeValueChangeDelegate(A_MaxFood).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleMaxFoodChanged);
+	FoodChangedHandle       = BoundASC->GetGameplayAttributeValueChangeDelegate(A_Food).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleFoodChanged);
+	MaxFoodChangedHandle    = BoundASC->GetGameplayAttributeValueChangeDelegate(A_MaxFood).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleMaxFoodChanged);
 
-	WaterChangedHandle = BoundASC->GetGameplayAttributeValueChangeDelegate(A_Water).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleWaterChanged);
-	MaxWaterChangedHandle = BoundASC->GetGameplayAttributeValueChangeDelegate(A_MaxWater).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleMaxWaterChanged);
+	WaterChangedHandle      = BoundASC->GetGameplayAttributeValueChangeDelegate(A_Water).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleWaterChanged);
+	MaxWaterChangedHandle   = BoundASC->GetGameplayAttributeValueChangeDelegate(A_MaxWater).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleMaxWaterChanged);
 
-	WarmthChangedHandle = BoundASC->GetGameplayAttributeValueChangeDelegate(A_Warmth).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleWarmthChanged);
+	WarmthChangedHandle     = BoundASC->GetGameplayAttributeValueChangeDelegate(A_Warmth).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleWarmthChanged);
 
-	MoraleChangedHandle = BoundASC->GetGameplayAttributeValueChangeDelegate(A_Morale).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleMoraleChanged);
-	MaxMoraleChangedHandle = BoundASC->GetGameplayAttributeValueChangeDelegate(A_MaxMorale).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleMaxMoraleChanged);
+	MoraleChangedHandle     = BoundASC->GetGameplayAttributeValueChangeDelegate(A_Morale).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleMoraleChanged);
+	MaxMoraleChangedHandle  = BoundASC->GetGameplayAttributeValueChangeDelegate(A_MaxMorale).AddUObject(this, &UMVVM_SettlerSlotDetails::HandleMaxMoraleChanged);
 }
 
 void UMVVM_SettlerSlotDetails::UnbindAttributeDelegates()
@@ -244,6 +295,11 @@ void UMVVM_SettlerSlotDetails::RecomputePct()
 	SetHealthPct((MaxHealth > 0.f) ? (Health / MaxHealth) : 0.f);
 	SetFoodPct((MaxFood > 0.f) ? (Food / MaxFood) : 0.f);
 	SetWaterPct((MaxWater > 0.f) ? (Water / MaxWater) : 0.f);
+
+	// Warmth has no max in your header -> keep it as "value only" pct
+	// If you later add MaxWarmth -> just mirror pattern.
+	SetWarmthPct(0.f);
+
 	SetMoralePct((MaxMorale > 0.f) ? (Morale / MaxMorale) : 0.f);
 }
 
@@ -251,72 +307,21 @@ void UMVVM_SettlerSlotDetails::RecomputePct()
 // MVVM setters
 // -------------------------
 
-void UMVVM_SettlerSlotDetails::SetHealth(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(Health, InValue);
-}
+void UMVVM_SettlerSlotDetails::SetHealth(float InValue)         { UE_MVVM_SET_PROPERTY_VALUE(Health, InValue); }
+void UMVVM_SettlerSlotDetails::SetMaxHealth(float InValue)      { UE_MVVM_SET_PROPERTY_VALUE(MaxHealth, InValue); }
+void UMVVM_SettlerSlotDetails::SetHealthPct(float InValue)      { UE_MVVM_SET_PROPERTY_VALUE(HealthPct, InValue); }
 
-void UMVVM_SettlerSlotDetails::SetMaxHealth(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(MaxHealth, InValue);
-}
+void UMVVM_SettlerSlotDetails::SetFood(float InValue)           { UE_MVVM_SET_PROPERTY_VALUE(Food, InValue); }
+void UMVVM_SettlerSlotDetails::SetMaxFood(float InValue)        { UE_MVVM_SET_PROPERTY_VALUE(MaxFood, InValue); }
+void UMVVM_SettlerSlotDetails::SetFoodPct(float InValue)        { UE_MVVM_SET_PROPERTY_VALUE(FoodPct, InValue); }
 
-void UMVVM_SettlerSlotDetails::SetHealthPct(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(HealthPct, InValue);
-}
+void UMVVM_SettlerSlotDetails::SetWater(float InValue)          { UE_MVVM_SET_PROPERTY_VALUE(Water, InValue); }
+void UMVVM_SettlerSlotDetails::SetMaxWater(float InValue)       { UE_MVVM_SET_PROPERTY_VALUE(MaxWater, InValue); }
+void UMVVM_SettlerSlotDetails::SetWaterPct(float InValue)       { UE_MVVM_SET_PROPERTY_VALUE(WaterPct, InValue); }
 
-void UMVVM_SettlerSlotDetails::SetFood(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(Food, InValue);
-}
+void UMVVM_SettlerSlotDetails::SetWarmth(float InValue)         { UE_MVVM_SET_PROPERTY_VALUE(Warmth, InValue); }
+void UMVVM_SettlerSlotDetails::SetWarmthPct(float InValue)      { UE_MVVM_SET_PROPERTY_VALUE(WarmthPct, InValue); }
 
-void UMVVM_SettlerSlotDetails::SetMaxFood(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(MaxFood, InValue);
-}
-
-void UMVVM_SettlerSlotDetails::SetFoodPct(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(FoodPct, InValue);
-}
-
-void UMVVM_SettlerSlotDetails::SetWater(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(Water, InValue);
-}
-
-void UMVVM_SettlerSlotDetails::SetMaxWater(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(MaxWater, InValue);
-}
-
-void UMVVM_SettlerSlotDetails::SetWaterPct(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(WaterPct, InValue);
-}
-
-void UMVVM_SettlerSlotDetails::SetWarmth(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(Warmth, InValue);
-}
-
-void UMVVM_SettlerSlotDetails::SetWarmthPct(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(WarmthPct, InValue);
-}
-
-void UMVVM_SettlerSlotDetails::SetMorale(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(Morale, InValue);
-}
-
-void UMVVM_SettlerSlotDetails::SetMaxMorale(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(MaxMorale, InValue);
-}
-
-void UMVVM_SettlerSlotDetails::SetMoralePct(float InValue)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(MoralePct, InValue);
-}
+void UMVVM_SettlerSlotDetails::SetMorale(float InValue)         { UE_MVVM_SET_PROPERTY_VALUE(Morale, InValue); }
+void UMVVM_SettlerSlotDetails::SetMaxMorale(float InValue)      { UE_MVVM_SET_PROPERTY_VALUE(MaxMorale, InValue); }
+void UMVVM_SettlerSlotDetails::SetMoralePct(float InValue)      { UE_MVVM_SET_PROPERTY_VALUE(MoralePct, InValue); }

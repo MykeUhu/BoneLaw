@@ -6,6 +6,7 @@
 #include "MVVMViewModelBase.h"
 #include "MVVM_SettlerSlotDetails.generated.h"
 
+class AStoneSettlerChar;
 class AStoneBaseChar;
 class UAbilitySystemComponent;
 struct FOnAttributeChangeData;
@@ -20,7 +21,7 @@ public:
 	// Details lifecycle
 	// -------------------------
 	UFUNCTION(BlueprintCallable)
-	void BindToSettler(AStoneBaseChar* InSettler);
+	void BindToSettler(const FGuid& SettlerId, AStoneSettlerChar* SettlerActor);
 
 	UFUNCTION(BlueprintCallable)
 	void Unbind();
@@ -98,6 +99,11 @@ private:
 
 private:
 	// -------------------------
+	// Bound identity
+	// -------------------------
+	FGuid BoundSettlerId;
+
+	// -------------------------
 	// GAS State
 	// -------------------------
 	UPROPERTY(Transient)
@@ -125,43 +131,43 @@ private:
 	// -------------------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float Health = 0.f;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float MaxHealth = 0.f;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float HealthPct = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float Food = 0.f;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float MaxFood = 0.f;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float FoodPct = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float Water = 0.f;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float MaxWater = 0.f;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float WaterPct = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float Warmth = 0.f;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float WarmthPct = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float Morale = 0.f;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float MaxMorale = 0.f;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float MoralePct = 0.f;
 };
