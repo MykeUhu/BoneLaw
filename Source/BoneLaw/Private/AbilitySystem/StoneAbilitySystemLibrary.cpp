@@ -166,6 +166,13 @@ UAbilityInfo* UStoneAbilitySystemLibrary::GetAbilityInfo(const UObject* WorldCon
 	return StoneGameMode->AbilityInfo;
 }
 
+UAttributeInfo* UStoneAbilitySystemLibrary::GetAttributeInfo(const UObject* WorldContextObject)
+{
+	const AStoneGameModeBase* StoneGameMode = Cast<AStoneGameModeBase>(UGameplayStatics::GetGameMode(WorldContextObject));
+	if (StoneGameMode == nullptr) return nullptr;
+	return StoneGameMode->AttributeInfo;
+}
+
 bool UStoneAbilitySystemLibrary::IsSuccessfulDebuff(const FGameplayEffectContextHandle& EffectContextHandle)
 {
 	if (const FStoneGameplayEffectContext* StoneEffectContext = static_cast<const FStoneGameplayEffectContext*>(EffectContextHandle.Get()))

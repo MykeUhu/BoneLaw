@@ -4,6 +4,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "StoneGameModeBase.generated.h"
 
+class UAttributeInfo;
 class UMVVM_LoadSlot;
 class ULoadScreenSaveGame;
 class USaveGame;
@@ -29,6 +30,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category="Ability Info")
 	TObjectPtr<UAbilityInfo> AbilityInfo;
+	
+	UPROPERTY(EditDefaultsOnly, Category="Attribute Info")
+	TObjectPtr<UAttributeInfo> AttributeInfo;
 
 	// -----------------------------
 	// Save / Load (Aura-style)

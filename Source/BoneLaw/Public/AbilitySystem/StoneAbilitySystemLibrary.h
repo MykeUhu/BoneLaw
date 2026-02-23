@@ -9,6 +9,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "StoneAbilitySystemLibrary.generated.h"
 
+class UAttributeInfo;
 class UAbilitySystemComponent;
 class ULoadScreenSaveGame;
 class UAbilityInfo;
@@ -69,6 +70,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="StoneAbilitySystemLibrary|CharacterClassDefaults")
 	static UAbilityInfo* GetAbilityInfo(const UObject* WorldContextObject);
+	
+	UFUNCTION(BlueprintCallable, Category="StoneAbilitySystemLibrary|CharacterClassDefaults")
+	static UAttributeInfo* GetAttributeInfo(const UObject* WorldContextObject);
 	
 	/*
 	 * Effect Context Getters
