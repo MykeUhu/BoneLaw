@@ -237,6 +237,7 @@ public:
 	UStoneRunTraceBuffer* GetTraceBuffer() const { return Trace; }
 	
 	// Queue event requests by tag (Action uses bAutoPresent=true; ambient uses false)
+	UFUNCTION(BlueprintCallable, Category="Stone|Event")
 	void QueueEventByTag(const FGameplayTag& EventTag, bool bAutoPresent);
 
 	// State queries (for action ticking)
@@ -371,10 +372,6 @@ private:
 
 	UPROPERTY()
 	bool bAutoPackUnlocksEnabled = true;
-	
-	// Realtime simulation speed (0 = paused). Used by real-time systems (expeditions etc.)
-	UPROPERTY()
-	float SimulationSpeed = 1.f;
 
 	// --- Expedition runtime state (real-time) ---
 	UPROPERTY()

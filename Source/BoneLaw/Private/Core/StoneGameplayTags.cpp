@@ -199,6 +199,19 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 		FName("Action.Explore.ReturnHome"),
 		FString("Action phase: Explore return home")
 	);
+	
+	// =========================
+	// Tags For EventArrival and Exit for BP
+	// =========================
+	GameplayTags.Exit_Forest = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Exit.Forest"),
+		FString("Action phase: Exit forest")
+		);
+	
+	GameplayTags.Event_Travel_EnterForest = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Event.Travel.EnterForest"),
+		FString("Action phase: Enter forest")
+		);
 
 	// =========================
 	// Regions

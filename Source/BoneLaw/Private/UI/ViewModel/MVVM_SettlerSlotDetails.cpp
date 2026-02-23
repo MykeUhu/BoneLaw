@@ -10,6 +10,7 @@
 #include "Core/Character/StoneSettlerChar.h"
 #include "AbilitySystem/Data/AttributeInfo.h"
 #include "Core/StoneGameplayTags.h"
+#include "Runtime/StoneRunSubsystem.h"
 
 // -------------------------
 // Details lifecycle
@@ -26,6 +27,35 @@ void UMVVM_SettlerSlotDetails::BindToSettler(const FGuid& SettlerId, AStoneSettl
 	if (!BoundSettler)
 	{
 		return;
+	}
+	// --- Bind Action Component (per-settler) ---
+	BoundActionComp = BoundSettler->FindComponentByClass<UStoneSettlerActionComponent>();
+	if (BoundActionComp)
+	{
+		BoundActionComp->OnActionStateChanged.AddDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionStateChanged);
+		BoundActionComp->OnActionProgressChanged.AddDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionProgressChanged);
+		HandleActionStateChanged(); // initial push
+	}
+	else
+	{
+		SetIsActionRunning(false);
+		SetActionProgress(0.f);
+		SetActionTitleText(FText::GetEmpty());
+		SetActionPhaseText(FText::GetEmpty());
+	}
+
+	// --- Bind Run Subsystem (global open event) ---
+	if (UWorld* World = BoundSettler->GetWorld())
+	{
+		if (UGameInstance* GI = World->GetGameInstance())
+		{
+			BoundRun = GI->GetSubsystem<UStoneRunSubsystem>();
+			if (BoundRun)
+			{
+				BoundRun->OnEventChanged.AddDynamic(this, &UMVVM_SettlerSlotDetails::HandleRunEventChanged);
+				SetHasOpenEvent(BoundRun->HasOpenEvent());
+			}
+		}
 	}
 
 	// Try immediate ASC
@@ -83,7 +113,25 @@ void UMVVM_SettlerSlotDetails::Unbind()
 		BoundSettler->OnAscRegistered.Remove(AscRegisteredHandle);
 		AscRegisteredHandle.Reset();
 	}
+	if (BoundActionComp)
+	{
+		BoundActionComp->OnActionStateChanged.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionStateChanged);
+		BoundActionComp->OnActionProgressChanged.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionProgressChanged);
+		BoundActionComp = nullptr;
+	}
 
+	if (BoundRun)
+	{
+		BoundRun->OnEventChanged.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleRunEventChanged);
+		BoundRun = nullptr;
+	}
+
+	SetIsActionRunning(false);
+	SetActionProgress(0.f);
+	SetActionTitleText(FText::GetEmpty());
+	SetActionPhaseText(FText::GetEmpty());
+	SetHasOpenEvent(false);
+	
 	BoundASC = nullptr;
 	BoundSettler = nullptr;
 
@@ -464,6 +512,42 @@ FSlateBrush UMVVM_SettlerSlotDetails::MakeBrushFromAttributeTag(const FGameplayT
 }
 
 // -------------------------
+// Event and Action Subsystem
+// -------------------------
+
+void UMVVM_SettlerSlotDetails::HandleActionStateChanged()
+{
+	if (!BoundActionComp)
+	{
+		SetIsActionRunning(false);
+		SetActionProgress(0.f);
+		SetActionTitleText(FText::GetEmpty());
+		SetActionPhaseText(FText::GetEmpty());
+		return;
+	}
+
+	SetIsActionRunning(BoundActionComp->IsActionRunning());
+	SetActionProgress(BoundActionComp->GetActionProgress01());
+	SetActionTitleText(BoundActionComp->GetActionTitleText());
+	SetActionPhaseText(BoundActionComp->GetPhaseText());
+}
+
+void UMVVM_SettlerSlotDetails::HandleActionProgressChanged(float Progress01)
+{
+	SetActionProgress(Progress01);
+
+	if (BoundActionComp)
+	{
+		SetActionPhaseText(BoundActionComp->GetPhaseText());
+	}
+}
+
+void UMVVM_SettlerSlotDetails::HandleRunEventChanged(const UStoneEventData* Event)
+{
+	SetHasOpenEvent(Event != nullptr);
+}
+
+// -------------------------
 // MVVM setters
 // -------------------------
 
@@ -504,3 +588,10 @@ void UMVVM_SettlerSlotDetails::SetTravelSpeed(float InTravelSpeed)              
 void UMVVM_SettlerSlotDetails::SetCraftSpeed(float InCraftSpeed)                { UE_MVVM_SET_PROPERTY_VALUE(CraftSpeed, InCraftSpeed); }
 void UMVVM_SettlerSlotDetails::SetGatherEfficiency(float InGatherEfficiency)    { UE_MVVM_SET_PROPERTY_VALUE(GatherEfficiency, InGatherEfficiency); }
 void UMVVM_SettlerSlotDetails::SetInjuryResistance(float InInjuryResistance)	{ UE_MVVM_SET_PROPERTY_VALUE(InjuryResistance, InInjuryResistance); }
+
+// Event and Action Subsystem
+void UMVVM_SettlerSlotDetails::SetIsActionRunning(bool bInIsRunning)			{ UE_MVVM_SET_PROPERTY_VALUE(bIsActionRunning, bInIsRunning); }
+void UMVVM_SettlerSlotDetails::SetActionProgress(float InProgress01)			{ UE_MVVM_SET_PROPERTY_VALUE(ActionProgress01, InProgress01); }
+void UMVVM_SettlerSlotDetails::SetActionTitleText(const FText& InTitle)			{ UE_MVVM_SET_PROPERTY_VALUE(ActionTitle, InTitle); }
+void UMVVM_SettlerSlotDetails::SetActionPhaseText(const FText& InPhase)			{ UE_MVVM_SET_PROPERTY_VALUE(ActionPhase, InPhase); }
+void UMVVM_SettlerSlotDetails::SetHasOpenEvent(bool bInHasOpenEvent)			{ UE_MVVM_SET_PROPERTY_VALUE(bHasOpenEvent, bInHasOpenEvent); }

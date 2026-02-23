@@ -11,6 +11,10 @@ class AStoneSettlerChar;
 class AStoneBaseChar;
 class UAbilitySystemComponent;
 class UAttributeInfo;
+class UStoneSettlerActionComponent;
+class UStoneRunSubsystem;
+class UStoneEventData;
+
 struct FOnAttributeChangeData;
 
 UCLASS()
@@ -27,6 +31,24 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void Unbind();
+	
+	// -------------------------
+	// Event and Action Subsystem
+	// -------------------------
+	UFUNCTION()
+	void HandleActionStateChanged();
+
+	UFUNCTION()
+	void HandleActionProgressChanged(float Progress01);
+
+	UFUNCTION()
+	void HandleRunEventChanged(const UStoneEventData* Event);
+	
+	UPROPERTY(Transient)
+	TObjectPtr<UStoneSettlerActionComponent> BoundActionComp;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStoneRunSubsystem> BoundRun;
 
 protected:
 	virtual void BeginDestroy() override;
@@ -111,6 +133,14 @@ private:
 	void SetCraftSpeed(float InCraftSpeed);
 	void SetGatherEfficiency(float InGatherEfficiency);
 	void SetInjuryResistance(float InInjuryResistance);
+	
+	// Action and Subsystem
+	void SetIsActionRunning(bool bInIsRunning);
+	void SetActionProgress(float InProgress01);
+	void SetActionTitleText(const FText& InTitle);
+	void SetActionPhaseText(const FText& InPhase);
+	void SetHasOpenEvent(bool bInHasOpenEvent);
+	
 
 	// -------------------------
 	// MVVM Getters
@@ -152,6 +182,13 @@ private:
 	float GetCraftSpeed() const { return CraftSpeed; }
 	float GetGatherEfficiency() const { return GatherEfficiency; }
 	float GetInjuryResistance() const { return InjuryResistance; }
+	
+	// Action and Subsystem
+	bool GetIsActionRunning() const { return bIsActionRunning; }
+	float GetActionProgress() const { return ActionProgress01; }
+	FText GetActionTitleText() const { return ActionTitle; }
+	FText GetActionPhaseText() const { return ActionPhase; }
+	bool GetHasOpenEvent() const { return bHasOpenEvent; }
 
 private:
 	// -------------------------
@@ -293,4 +330,20 @@ private:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
 	float InjuryResistance;
+	
+	// Event and Action Subsystem
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter=GetIsActionRunning, Setter=SetIsActionRunning, FieldNotify, meta=(AllowPrivateAccess="true"))
+	bool bIsActionRunning = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter=GetActionProgress, Setter=SetActionProgress, FieldNotify, meta=(AllowPrivateAccess="true"))
+	float ActionProgress01 = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter=GetActionTitleText, Setter=SetActionTitleText, FieldNotify, meta=(AllowPrivateAccess="true"))
+	FText ActionTitle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter=GetActionPhaseText, Setter=SetActionPhaseText, FieldNotify, meta=(AllowPrivateAccess="true"))
+	FText ActionPhase;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter=GetHasOpenEvent, Setter=SetHasOpenEvent, FieldNotify, meta=(AllowPrivateAccess="true"))
+	bool bHasOpenEvent = false;
 };

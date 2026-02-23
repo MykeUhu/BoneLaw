@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/Character/StoneBaseChar.h"
+#include "Core/Components/StoneSettlerActionComponent.h"
 #include "Data/StoneTypes.h"
 #include "StoneSettlerChar.generated.h"
 
@@ -35,6 +36,9 @@ public:
 	/** Apply save-driven state to this pawn (data-only). Safe to call multiple times. */
 	UFUNCTION(BlueprintCallable, Category="Stone|Roster")
 	void ApplySavedState(const FSavedSettler& SettlerData);
+	
+	UFUNCTION(BlueprintPure, Category="Stone|Action")
+	UStoneSettlerActionComponent* GetActionComponent() const { return ActionComponent; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -64,4 +68,11 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<AStoneAIController> StoneAIController = nullptr;
+	
+	// -------------------------
+	// Actions (per-settler)
+	// -------------------------
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Stone|Action", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UStoneSettlerActionComponent> ActionComponent = nullptr;
+	
 };

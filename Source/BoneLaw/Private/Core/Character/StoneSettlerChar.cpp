@@ -16,6 +16,7 @@ AStoneSettlerChar::AStoneSettlerChar()
 	// Pawn-owned ASC (AuraEnemy style)
 	AbilitySystemComponent = CreateDefaultSubobject<UStoneAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
 	AttributeSet = CreateDefaultSubobject<UStoneAttributeSet>(TEXT("AttributeSet"));
+	ActionComponent = CreateDefaultSubobject<UStoneSettlerActionComponent>(TEXT("ActionComponent"));
 
 	if (AbilitySystemComponent)
 	{

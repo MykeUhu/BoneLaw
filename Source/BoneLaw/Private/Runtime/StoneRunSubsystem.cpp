@@ -15,33 +15,9 @@
 #include "Library/StoneEventLibrary.h"
 #include "Library/StonePackLibrary.h"
 
-#include "Runtime/StoneActionSubsystem.h"
 
 #include "Engine/World.h"
 #include "TimerManager.h"
-
-namespace
-{
-	static void StopWorldActionSubsystemIfRunning(UWorld* World, const TCHAR* Caller)
-	{
-		if (!World)
-		{
-			return;
-		}
-
-		UStoneActionSubsystem* ActionSS = World->GetSubsystem<UStoneActionSubsystem>();
-		if (!ActionSS)
-		{
-			return;
-		}
-
-		if (ActionSS->IsActionRunning())
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] %s: stopping StoneActionSubsystem action (demo rule: no stacked actions)."), Caller);
-			ActionSS->StopCurrentAction(/*bForceReturnHomeEvent*/ false);
-		}
-	}
-}
 
 float UStoneRunSubsystem::GetSimulationSpeed() const
 {
@@ -213,15 +189,12 @@ void UStoneRunSubsystem::StartExploreExpedition(FName ExplorePackId, float Durat
 		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] StartExploreExpedition: ExplorePackId is None"));
 		return;
 	}
-
-	// Demo rule: do not stack actions from different systems.
-	StopWorldActionSubsystemIfRunning(GetWorld(), TEXT("StartExploreExpedition"));
-
-// Demo rule: do not stack real-time actions.
-if (bTravelActive)
-{
-	StopTravelAction(/*bForceReturnHomeEvent*/ false);
-}
+	
+	// Demo rule: do not stack real-time actions.
+	if (bTravelActive)
+		{
+		StopTravelAction(/*bForceReturnHomeEvent*/ false);
+		}
 
 	// Ensure core systems exist.
 	if (!EnsurePlayerStateCache())
@@ -971,27 +944,14 @@ void UStoneRunSubsystem::ApplyChoice(int32 ChoiceIndex)
 	const FStoneGameplayTags& T = FStoneGameplayTags::Get();
 	const bool bTagGate = RunTags.HasTag(T.State_OnAction) || RunTags.HasTag(T.State_OnExpedition);
 
-	// Also check ActionSubsystem directly (it owns its own bActionRunning flag
-	// and is authoritative about whether an action is still in progress).
-	// UStoneActionSubsystem is a UWorldSubsystem, so we get it from UWorld.
-	bool bActionSubsystemRunning = false;
-	if (UWorld* W = GetWorld())
-	{
-		if (UStoneActionSubsystem* ActionSS = W->GetSubsystem<UStoneActionSubsystem>())
-		{
-			bActionSubsystemRunning = ActionSS->IsActionRunning();
-		}
-	}
-
-	const bool bRealtimeActionGate = bTagGate || bTravelActive || bExpeditionActive || bActionSubsystemRunning;
+	const bool bRealtimeActionGate = bTagGate || bTravelActive || bExpeditionActive;
 
 	UE_LOG(LogTemp, Log,
-		TEXT("[StoneRunSubsystem] ApplyChoice: Gate check -> bRealtimeActionGate=%s (TagGate=%s Travel=%s Expedition=%s ActionSS=%s) PendingEvents=%d"),
+		TEXT("[StoneRunSubsystem] ApplyChoice: Gate check -> bRealtimeActionGate=%s (TagGate=%s Travel=%s Expedition=%s) PendingEvents=%d"),
 		bRealtimeActionGate ? TEXT("YES") : TEXT("NO"),
 		bTagGate ? TEXT("Y") : TEXT("N"),
 		bTravelActive ? TEXT("Y") : TEXT("N"),
 		bExpeditionActive ? TEXT("Y") : TEXT("N"),
-		bActionSubsystemRunning ? TEXT("Y") : TEXT("N"),
 		PendingEventIds.Num());
 
 	if (bRealtimeActionGate)
@@ -1509,10 +1469,7 @@ void UStoneRunSubsystem::StartTravelAction(FName InTravelPackId, float TotalSeco
 		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] StartTravelAction: TravelPackId is None"));
 		return;
 	}
-
-	// Demo rule: do not stack actions from different systems.
-	StopWorldActionSubsystemIfRunning(GetWorld(), TEXT("StartTravelAction"));
-
+	
 	// Demo rule: do not stack real-time actions.
 	if (bExpeditionActive)
 	{

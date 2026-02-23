@@ -13,7 +13,6 @@ class UTextBlock;
 class UStoneWidgetController;
 class UStoneOverlayWidgetController;
 
-class UStoneActionSubsystem;
 class UStoneActionDefinitionData;
 struct FStoneSnapshot;
 class UStoneEventData;
@@ -86,6 +85,4 @@ private:
 	UPROPERTY()
 	TObjectPtr<UStoneWidgetController> OverlayController;
 
-	UPROPERTY()
-	TObjectPtr<UStoneActionSubsystem> ActionSubsystem;
 };

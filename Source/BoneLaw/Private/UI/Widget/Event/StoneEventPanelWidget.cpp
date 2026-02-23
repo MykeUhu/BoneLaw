@@ -6,7 +6,6 @@
 #include "Components/VerticalBox.h"
 
 #include "Data/StoneEventData.h"
-#include "Runtime/StoneActionSubsystem.h"
 #include "Runtime/StoneRunSubsystem.h"
 
 #include "UI/CustomElements/StoneCustomTextBlock.h"
@@ -34,8 +33,6 @@ void UStoneEventPanelWidget::SetOverlayController(UStoneWidgetController* InCont
 	UnbindAll();
 	OverlayController = InController;
 
-	// Subsystems (World Subsystem) cachen
-	ActionSubsystem = GetWorld() ? GetWorld()->GetSubsystem<UStoneActionSubsystem>() : nullptr;
 
 	UStoneOverlayWidgetController* OC = GetOverlayController();
 	if (!OC)
@@ -64,15 +61,7 @@ void UStoneEventPanelWidget::BindAll()
 	OC->OnOverlaySnapshotChanged.RemoveDynamic(this, &UStoneEventPanelWidget::HandleOverlaySnapshotChanged);
 	OC->OnOverlaySnapshotChanged.AddDynamic(this, &UStoneEventPanelWidget::HandleOverlaySnapshotChanged);
 
-	// Action subsystem delegates (optional)
-	if (ActionSubsystem)
-	{
-		ActionSubsystem->OnActionStateChanged.RemoveDynamic(this, &UStoneEventPanelWidget::HandleActionStateChanged);
-		ActionSubsystem->OnActionStateChanged.AddDynamic(this, &UStoneEventPanelWidget::HandleActionStateChanged);
-
-		ActionSubsystem->OnActionProgressChanged.RemoveDynamic(this, &UStoneEventPanelWidget::HandleActionProgressChanged);
-		ActionSubsystem->OnActionProgressChanged.AddDynamic(this, &UStoneEventPanelWidget::HandleActionProgressChanged);
-	}
+	
 }
 
 void UStoneEventPanelWidget::UnbindAll()
@@ -84,14 +73,9 @@ void UStoneEventPanelWidget::UnbindAll()
 		OC->OnOverlaySnapshotChanged.RemoveDynamic(this, &UStoneEventPanelWidget::HandleOverlaySnapshotChanged);
 	}
 
-	if (ActionSubsystem)
-	{
-		ActionSubsystem->OnActionStateChanged.RemoveDynamic(this, &UStoneEventPanelWidget::HandleActionStateChanged);
-		ActionSubsystem->OnActionProgressChanged.RemoveDynamic(this, &UStoneEventPanelWidget::HandleActionProgressChanged);
-	}
+	
 
 	OverlayController = nullptr;
-	ActionSubsystem = nullptr;
 	CurrentEvent = nullptr;
 }
 
@@ -157,52 +141,7 @@ void UStoneEventPanelWidget::RefreshFromEvent(const UStoneEventData* Event)
 		TB_Title ? TEXT("OK") : TEXT("NULL"),
 		TB_Body ? TEXT("OK") : TEXT("NULL"));
 
-	// === No event open: show ACTION / TRAVEL status instead of empty panel ===
-	if (!Event)
-	{
-		const bool bActionRunning = ActionSubsystem && ActionSubsystem->IsActionRunning();
 
-		if (bActionRunning)
-		{
-			const FText Title = ActionSubsystem->GetActionTitleText();
-			const FText Phase = ActionSubsystem->GetPhaseText();
-			const float Remaining = ActionSubsystem->GetRemainingSeconds();
-
-			if (TB_Title) TB_Title->SetText(Title);
-
-			if (TB_Body)
-			{
-				// Example: "On the way… (Outbound)  |  ETA: 12s"
-				const FText EtaText = FText::FromString(FString::Printf(TEXT("ETA: %.0fs"), Remaining));
-				const FText Body = Phase.IsEmpty()
-					? EtaText
-					: FText::Format(FText::FromString(TEXT("{0}  |  {1}")), Phase, EtaText);
-
-				TB_Body->SetText(Body);
-			}
-
-			if (PB_Progress)
-			{
-				PB_Progress->SetPercent(ActionSubsystem->GetActionProgress01());
-				PB_Progress->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-			}
-
-			// Optional BP hook: treat as "shown" so BP can animate in
-			BP_OnEventShown();
-			return;
-		}
-
-		// Truly idle: no event and no action.
-		if (TB_Title) TB_Title->SetText(FText::GetEmpty());
-		if (TB_Body)  TB_Body->SetText(FText::GetEmpty());
-		if (PB_Progress)
-		{
-			PB_Progress->SetPercent(0.f);
-			PB_Progress->SetVisibility(ESlateVisibility::Collapsed);
-		}
-		BP_OnEventHidden();
-		return;
-	}
 
 	// === Normal event view ===
 	CurrentEvent = Event;
@@ -234,16 +173,7 @@ void UStoneEventPanelWidget::RefreshFromEvent(const UStoneEventData* Event)
 	// Progress: if action is running, keep progress visible while events happen too
 	if (PB_Progress)
 	{
-		const bool bActionRunning = ActionSubsystem && ActionSubsystem->IsActionRunning();
-		PB_Progress->SetVisibility(bActionRunning ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
-		if (bActionRunning)
-		{
-			PB_Progress->SetPercent(ActionSubsystem->GetActionProgress01());
-		}
-		else
-		{
-			PB_Progress->SetPercent(0.f);
-		}
+		
 	}
 
 	RebuildChoices();
@@ -389,22 +319,7 @@ void UStoneEventPanelWidget::RefreshProgressVisual()
 	float Progress01 = -1.f;
 	const TCHAR* Source = TEXT("");
 
-	if (ActionSubsystem && ActionSubsystem->IsActionRunning())
-	{
-		Progress01 = ActionSubsystem->GetActionProgress01();
-		Source = TEXT("Action");
-	}
-	else if (Run->IsTravelActive())
-	{
-		Progress01 = Run->GetTravelProgress01();
-		Source = TEXT("Travel");
-	}
-	else if (Run->IsOnExpedition())
-	{
-		Progress01 = Run->GetExpeditionProgress01();
-		Source = TEXT("Expedition");
-	}
-
+	
 	if (Progress01 < 0.f)
 	{
 		PB_Progress->SetVisibility(ESlateVisibility::Collapsed);

@@ -75,6 +75,12 @@ public:
 	FGameplayTag Action_Explore_Arrival;
 	FGameplayTag Action_Explore_Return;
 	FGameplayTag Action_Explore_ReturnHome;
+	
+	// =========================
+	// ExitTags for BP
+	// =========================
+	FGameplayTag Exit_Forest;
+	FGameplayTag Event_Travel_EnterForest;
 
 	// =========================
 	// Regions (run-level identity)

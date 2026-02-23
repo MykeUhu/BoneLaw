@@ -28,27 +28,11 @@ protected:
 	virtual void SetupInputComponent() override;
 
 private:
-	/** SSOT: Start-Pack ID hier setzen (z.B. "Pack_Core"). */
-	UPROPERTY(EditDefaultsOnly, Category="Stone|Run")
-	FName DefaultStartPack = NAME_None;
-	
 	UPROPERTY()
 	TObjectPtr<UStoneAbilitySystemComponent> StoneAbilitySystemComponent;
 
 	UStoneAbilitySystemComponent* GetASC();
-
-	// === Actions / Expeditions ===
-	// Simple demo action: send the tribe out to explore using a pack (e.g. Pack_Explore_01)
-	// and let events appear over time.
-	UPROPERTY(EditDefaultsOnly, Category="Stone|Expedition")
-	FName DefaultExplorePack = TEXT("Pack_Explore_01");
-
-	UFUNCTION(BlueprintCallable, Category="Stone|Expedition")
-	void StartExploreExpedition(float DurationSeconds = 300.f, float MinEventGapSeconds = 20.f, float MaxEventGapSeconds = 60.f, bool bTriggerFirstEventImmediately = false);
-
-	UFUNCTION(BlueprintCallable, Category="Stone|Expedition")
-	void StopExpedition(bool bForceReturnEvent = true);
-
+	
 	// ==========================================
 	// CAMERA / COMMANDER WORKFLOW
 	// ==========================================
@@ -179,10 +163,6 @@ protected:
 	virtual void OnRep_PlayerState() override;
 
 private:
-
-	UPROPERTY()
-	float SimSpeed = 1.f;
-	
 	void TryInitOverlay();
 
 	UPROPERTY(Transient)

@@ -29,10 +29,13 @@ static UWorld* ResolveWorldFromContext(UObject* WorldContextObject)
 // Data API for Blueprint
 // -------------------------
 
+
 FGuid UMVVM_SettlerScreen::GetSettlerGuidByIndex(int32 Index) const
 {
 	return CachedSettlerGuids.IsValidIndex(Index) ? CachedSettlerGuids[Index] : FGuid();
 }
+
+
 
 FString UMVVM_SettlerScreen::GetSettlerNameByGuid(const FGuid& SettlerId) const
 {
@@ -44,6 +47,7 @@ FString UMVVM_SettlerScreen::GetSettlerNameByGuid(const FGuid& SettlerId) const
 	const FSavedSettler Info = CachedRoster->GetSettlerInfo(SettlerId);
 	return Info.DisplayName;
 }
+
 
 AStoneBaseChar* UMVVM_SettlerScreen::GetSettlerPawnByGuid(const FGuid& SettlerId)
 {
@@ -64,9 +68,9 @@ void UMVVM_SettlerScreen::SetNumSettlers(int32 InNumSettlers)
 // ViewModel Registration
 // -------------------------
 
-void UMVVM_SettlerScreen::RequestShowDetails(const FGuid& SettlerGuid, AStoneSettlerChar* SettlerChar)
+void UMVVM_SettlerScreen::RequestShowDetails(const FGuid& SettlerGuid)
 {
-	OnRequestShowDetails.Broadcast(SettlerGuid, SettlerChar);
+	OnRequestShowDetails.Broadcast(SettlerGuid);
 }
 
 // end Data API
@@ -136,4 +140,15 @@ void UMVVM_SettlerScreen::HandleRosterChanged()
 	UObject* Ctx = CachedWorldContextObject.Get();
 	RefreshDataFromRoster(Ctx);
 }
+
 // end Roster
+
+void UMVVM_SettlerScreen::SetSelectedSettlerGuid_Internal(const FGuid& InGuid)
+{
+	UE_MVVM_SET_PROPERTY_VALUE(SelectedSettlerGuid, InGuid);
+}
+
+void UMVVM_SettlerScreen::SetSelectedSettlerGuid(const FGuid& InGuid)
+{
+	SetSelectedSettlerGuid_Internal(InGuid);
+}

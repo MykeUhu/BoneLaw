@@ -12,7 +12,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSettlerListRebuilt);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSettlerSelected, FGuid, SettlerId);
 
 /** GUID-based detail request (SlotIndex is legacy, GUID is primary). */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSettlerRequestShowDetails, FGuid, SettlerGuid, class AStoneSettlerChar*, SettlerChar);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSettlerRequestShowDetails, FGuid, SettlerGuid);
 
 class UStoneRosterSubsystem;
 class UMVVM_SettlerSlot;
@@ -81,7 +81,7 @@ public:
 
 	/** Broadcast detail request by GUID (called from Blueprint slot widgets). */
 	UFUNCTION(BlueprintCallable, Category="Settlers")
-	void RequestShowDetails(const FGuid& SettlerGuid, AStoneSettlerChar* SettlerChar);
+	void RequestShowDetails(const FGuid& SettlerGuid);
 
 private:
 	UFUNCTION()
@@ -89,8 +89,29 @@ private:
 
 	UPROPERTY()
 	TWeakObjectPtr<UObject> CachedWorldContextObject;
-
+	
 	UPROPERTY()
 	TWeakObjectPtr<UStoneRosterSubsystem> CachedRoster;
 	// end Roster
+	
+	// -------------------------
+	// Selected Settler (SSOT = GUID)
+	// -------------------------
+public:
+	/** Blueprint API: set selected settler */
+	UFUNCTION(BlueprintCallable, Category="Settlers")
+	void SetSelectedSettlerGuid(const FGuid& InGuid);
+
+	/** Blueprint API: get selected settler */
+	UFUNCTION(BlueprintPure, Category="Settlers")
+	FGuid GetSelectedSettlerGuid_BP() const { return SelectedSettlerGuid; }
+
+private:
+	// MVVM Field
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, FieldNotify, Getter, Setter, meta=(AllowPrivateAccess="true"))
+	FGuid SelectedSettlerGuid;
+
+	// MVVM Getter/Setter required by UPROPERTY(Getter/Setter)
+	FGuid GetSelectedSettlerGuid() const { return SelectedSettlerGuid; }
+	void SetSelectedSettlerGuid_Internal(const FGuid& InGuid);
 };

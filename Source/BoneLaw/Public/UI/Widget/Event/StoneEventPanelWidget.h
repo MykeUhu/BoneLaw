@@ -10,7 +10,6 @@ class UVerticalBox;
 class UProgressBar;
 class UStoneWidgetController;
 class UStoneOverlayWidgetController;
-class UStoneActionSubsystem;
 class UStoneChoiceButtonWidget;
 class UStoneCustomTextBlock;
 class UStoneEventData;
@@ -72,9 +71,6 @@ protected:
 private:
 	UPROPERTY()
 	TObjectPtr<UObject> OverlayController = nullptr;
-
-	UPROPERTY()
-	TObjectPtr<UStoneActionSubsystem> ActionSubsystem = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<const UStoneEventData> CurrentEvent = nullptr;
