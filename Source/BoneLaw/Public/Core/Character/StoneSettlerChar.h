@@ -6,6 +6,7 @@
 #include "Core/Character/StoneBaseChar.h"
 #include "Core/Components/StoneSettlerActionComponent.h"
 #include "Data/StoneTypes.h"
+#include "GameplayEffectTypes.h"
 #include "StoneSettlerChar.generated.h"
 
 class AStoneAIController;
@@ -39,6 +40,25 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Stone|Action")
 	UStoneSettlerActionComponent* GetActionComponent() const { return ActionComponent; }
+	
+	// -------------------------
+	// GAS State via GameplayEffects (SSOT: SettlerChar)
+	// -------------------------
+
+	UFUNCTION(BlueprintCallable, Category="Stone|GAS|State")
+	void ClearStateEffects();
+
+	UFUNCTION(BlueprintCallable, Category="Stone|GAS|State")
+	void SetState_Idle();
+	
+	UFUNCTION(BlueprintCallable, Category="Stone|GAS|State")
+	void SetState_TravelToActionStart();
+
+	UFUNCTION(BlueprintCallable, Category="Stone|GAS|State")
+	void SetState_ActionRunning();
+
+	UFUNCTION(BlueprintCallable, Category="Stone|GAS|State")
+	void SetState_TravelReturning();
 
 protected:
 	virtual void BeginPlay() override;
@@ -74,5 +94,35 @@ protected:
 	// -------------------------
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Stone|Action", meta=(AllowPrivateAccess="true"))
 	TObjectPtr<UStoneSettlerActionComponent> ActionComponent = nullptr;
+	
+	// --- State GameplayEffects (set in BP defaults of the Settler BP) ---
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Stone|GAS|State", meta=(AllowPrivateAccess="true"))
+	TSubclassOf<UGameplayEffect> GE_State_Idle;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Stone|GAS|State", meta=(AllowPrivateAccess="true"))
+	TSubclassOf<UGameplayEffect> GE_State_TravelToActionStart;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Stone|GAS|State", meta=(AllowPrivateAccess="true"))
+	TSubclassOf<UGameplayEffect> GE_State_ActionRunning;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Stone|GAS|State", meta=(AllowPrivateAccess="true"))
+	TSubclassOf<UGameplayEffect> GE_State_TravelReturning;
+
+	// --- Active handles (runtime) ---
+	UPROPERTY(Transient)
+	FActiveGameplayEffectHandle Handle_State_Idle;
+
+	UPROPERTY(Transient)
+	FActiveGameplayEffectHandle Handle_State_TravelToActionStart;
+
+	UPROPERTY(Transient)
+	FActiveGameplayEffectHandle Handle_State_ActionRunning;
+
+	UPROPERTY(Transient)
+	FActiveGameplayEffectHandle Handle_State_TravelReturning;
+
+	// Internal helpers
+	FActiveGameplayEffectHandle ApplyStateEffect(TSubclassOf<UGameplayEffect> EffectClass, float EffectLevel = 1.f);
+	void RemoveStateEffect(FActiveGameplayEffectHandle& Handle);
 	
 };

@@ -6,90 +6,115 @@
 #include "GameplayTagContainer.h"
 
 /**
+ * Central registry of native gameplay tags for BoneLaw / Stone.
  *
+ * Guidelines:
+ * - Keep groups stable: UI & GAS meta, global state, action system, regions/unlocks,
+ *   events (categories + phases), status, worldline, milestones, attributes.
+ * - Naming mirrors the actual tag path hierarchy (e.g. State.*, Event.*, Attributes.*).
+ * - Do NOT remove or rename fields casually: referenced by BP/DT/Logic.
  */
 struct FStoneGameplayTags
 {
 public:
 	static const FStoneGameplayTags& Get() { return GameplayTags; }
 	static void InitializeNativeGameplayTags();
-	
-	// =========================
-	// Abilities (GAS/UI meta)
-	// =========================
+
+	// =====================================================================
+	// ABILITIES (GAS/UI meta)
+	// =====================================================================
 	FGameplayTag Abilities_None;
 
+	// Ability acquisition / UI state (for widgets, tooltips, gating)
 	FGameplayTag Abilities_Status_Equipped;
 	FGameplayTag Abilities_Status_Unlocked;
 	FGameplayTag Abilities_Status_Eligible;
 
+	// Ability type (classification for UI/filters, not gameplay state)
 	FGameplayTag Abilities_Type_Passive;
 	FGameplayTag Abilities_Type_Offensive;
 
-	// Input
+	// Input tags (EnhancedInput -> GAS input mapping, etc.)
 	FGameplayTag InputTag;
-	
-	// =========================
-	// Core State
-	// =========================
+
+	// =====================================================================
+	// CORE STATE (global run + camera + pawn state)
+	// =====================================================================
+
+	// Day/Night cycle
 	FGameplayTag State_Day;
 	FGameplayTag State_Night;
-	FGameplayTag State_RunStarted; // NEW: Gate "non-start" events after the first choice
-	// Run start flow
-	FGameplayTag State_RegionSelected; // Run state: starting region has been chosen
+
+	// Run gating / global progress flags
+	FGameplayTag State_RunStarted;      // Gate "pre-run" events after first choice
+	FGameplayTag State_RegionSelected;  // Starting region has been chosen
+
+	// Global exploration / location context
 	FGameplayTag State_InCave;
 	FGameplayTag State_OnExpedition;
 
-	// Camera States (Commander/FreeCam workflow)
-	FGameplayTag State_Camera_Free;          // FreeCam mode (default, flying spectator)
-	FGameplayTag State_Camera_Follow;        // Following/observing a selected settler
+	// Camera / commander modes
+	FGameplayTag State_Camera_Free;           // FreeCam mode (default, flying spectator)
+	FGameplayTag State_Camera_Follow;         // Following/observing a selected settler
 	FGameplayTag State_Camera_BuildPlacement; // Build ghost placement active
-	FGameplayTag State_Camera_UI;            // UI interaction (radial menu, etc.)
+	FGameplayTag State_Camera_UI;             // UI interaction (radial menu, etc.)
 
-	// Action state (real-time actions orchestrated by Stone)
+	// High-level realtime orchestration flags (Stone systems)
 	FGameplayTag State_OnAction;
 	FGameplayTag State_OnTravel;
-	
+
+	// Injury / found / small state flags
 	FGameplayTag State_Injury_Leg;
-	
 	FGameplayTag State_Found_Berries;
 	FGameplayTag State_Found_SharpStone;
 
-	// =========================
-	// Action Tags (Action System - separate from Events)
-	// =========================
+	// ---------------------------------------------------------------------
+	// BehaviorTree / Blackboard-used pawn state tags (SSOT via GAS states)
+	// ---------------------------------------------------------------------
+	FGameplayTag State_Idle;
+	FGameplayTag State_Travel_ToActionStart;
+	FGameplayTag State_Travel_Returning;
+	FGameplayTag State_Action_Running;
+
+	// =====================================================================
+	// ACTION TAGS (Action System - separate from Events)
+	// =====================================================================
+
+	// High-level action types (used to select logic/pools)
 	FGameplayTag Action_Explore_Area;
 
-	// Action phases (replace Event.Travel.* for action-driven flows)
+	// Action travel phases (action-driven flow, not random events)
 	FGameplayTag Action_Travel_Outbound;
 	FGameplayTag Action_Travel_Arrival;
 	FGameplayTag Action_Travel_Return;
 	FGameplayTag Action_Travel_ReturnHome;
 
+	// Gather phases
 	FGameplayTag Action_Gather_Outbound;
 	FGameplayTag Action_Gather_Arrival;
 	FGameplayTag Action_Gather_Return;
 	FGameplayTag Action_Gather_ReturnHome;
 
+	// Explore phases
 	FGameplayTag Action_Explore_Outbound;
 	FGameplayTag Action_Explore_Arrival;
 	FGameplayTag Action_Explore_Return;
 	FGameplayTag Action_Explore_ReturnHome;
-	
-	// =========================
-	// ExitTags for BP
-	// =========================
+
+	// =====================================================================
+	// EXIT / TRANSITION TAGS (BP convenience)
+	// =====================================================================
 	FGameplayTag Exit_Forest;
 	FGameplayTag Event_Travel_EnterForest;
 
-	// =========================
-	// Regions (run-level identity)
-	// =========================
+	// =====================================================================
+	// REGIONS (run-level identity)
+	// =====================================================================
 	FGameplayTag Region_Core; // Demo region: core area
 
-	// =========================
-	// Unlocks (Progress / Discoveries)
-	// =========================
+	// =====================================================================
+	// UNLOCKS (progress / discoveries)
+	// =====================================================================
 	FGameplayTag Unlock_Fire;
 	FGameplayTag Unlock_Shelter;
 	FGameplayTag Unlock_Traps;
@@ -97,9 +122,9 @@ public:
 	FGameplayTag Unlock_Cooking;
 	FGameplayTag Unlock_SharpStone;
 
-	// =========================
-	// Focus (UI Hotspots)
-	// =========================
+	// =====================================================================
+	// FOCUS (UI hotspots / player intent)
+	// =====================================================================
 	FGameplayTag Focus_Hunt;
 	FGameplayTag Focus_Shelter;
 	FGameplayTag Focus_Water;
@@ -107,29 +132,32 @@ public:
 	FGameplayTag Focus_Forage;
 	FGameplayTag Focus_Explore;
 
-	// =========================
-	// Event Tags (used for weighting + gating)
-	// =========================
+	// =====================================================================
+	// EVENT TAGS (used for weighting + gating)
+	// =====================================================================
+
+	// Broad event categories (weight pools, eligibility, UI grouping)
+	FGameplayTag Event_Day;
+	FGameplayTag Event_Night;
+
 	FGameplayTag Event_Hunt;
 	FGameplayTag Event_Forage;
 	FGameplayTag Event_Shelter;
 	FGameplayTag Event_Water;
 	FGameplayTag Event_Fire;
+
 	FGameplayTag Event_Social;
 	FGameplayTag Event_Illness;
 	FGameplayTag Event_Injury;
-	FGameplayTag Event_Night;
-	FGameplayTag Event_Day;
+
 	FGameplayTag Event_FindStone;
 	FGameplayTag Event_Wildlife;
-	
-	// =========================
-	// Event category
-	// =========================
+
+	// Event category: exploration loop
 	FGameplayTag Event_Explore;
 	FGameplayTag Event_ExploreReturn;
 
-	// Travel phase tags (used for action-driven travel)
+	// Travel phase tags (event-driven travel, if used for narrative/queue)
 	FGameplayTag Event_Travel_Outbound;
 	FGameplayTag Event_Travel_Arrival;
 	FGameplayTag Event_Travel_Return;
@@ -138,18 +166,20 @@ public:
 	// Ambient/idle random events (usually queued, not auto-presented)
 	FGameplayTag Event_Ambient;
 
-	// =========================
-	// Status Tags (optional, for rules/pools/UI)
-	// =========================
+	// =====================================================================
+	// STATUS TAGS (optional, rules/pools/UI)
+	// =====================================================================
 	FGameplayTag Status_Bleeding;
 	FGameplayTag Status_Fever;
 	FGameplayTag Status_Exhaustion;
 	FGameplayTag Status_Paranoia;
 	FGameplayTag Status_Grief;
-	
-	// =========================
-	// Worldline (hidden narrative state that shapes the run)
-	// =========================
+
+	// =====================================================================
+	// WORLDLINE (hidden narrative state that shapes the run)
+	// =====================================================================
+
+	// Worldline poles (coarse classification; usually derived from axis attributes)
 	FGameplayTag Worldline_Merciful;
 	FGameplayTag Worldline_Ruthless;
 
@@ -168,47 +198,56 @@ public:
 	FGameplayTag Worldline_TabooLoose;
 	FGameplayTag Worldline_TabooStrict;
 
-	// Optional “hard flags” (milestones)
+	// Optional “hard flags” (milestones / irreversible unlocks)
 	FGameplayTag Worldline_CannibalismUnlocked;
 	FGameplayTag Worldline_RaidersAttracted;
 	FGameplayTag Worldline_HealerPath;
 	FGameplayTag Worldline_ToolmakerPath;
 
-	// =========================
+	// ---------------------------------------------------------------------
 	// Milestone Event Tags (injected events triggered by worldline thresholds)
-	// These tags identify which event to queue when a milestone is reached.
-	// The WorldlineDirector uses these instead of hardcoded event IDs.
-	// =========================
+	// Identify which event to queue when a milestone is reached.
+	// ---------------------------------------------------------------------
 	FGameplayTag MilestoneEvent_Cannibal_FirstTime;
 	FGameplayTag MilestoneEvent_Tools_Breakthrough;
 	FGameplayTag MilestoneEvent_Healer_Breakthrough;
 	FGameplayTag MilestoneEvent_Raiders_FirstContact;
 	FGameplayTag MilestoneEvent_Spirits_Awakening;
 	FGameplayTag MilestoneEvent_Taboo_Shattered;
-	
-	// =========================
-	// Attributes (GAS)
-	// =========================
+
+	// =====================================================================
+	// ATTRIBUTES (GAS)
+	// =====================================================================
+
+	// -------------------------
+	// Primary Attributes
+	// -------------------------
 	FGameplayTag Attributes_Primary_Strength;
 	FGameplayTag Attributes_Primary_Intelligence;
 	FGameplayTag Attributes_Primary_Endurance;
 	FGameplayTag Attributes_Primary_Willpower;
 	FGameplayTag Attributes_Primary_Social;
 
+	// -------------------------
+	// Secondary Attributes
+	// -------------------------
 	FGameplayTag Attributes_Secondary_CarryCapacity;
 	FGameplayTag Attributes_Secondary_TravelSpeed;
 	FGameplayTag Attributes_Secondary_CraftSpeed;
 	FGameplayTag Attributes_Secondary_GatherEfficiency;
 	FGameplayTag Attributes_Secondary_InjuryResistance;
-	
+
+	// Max pools (derived caps)
 	FGameplayTag Attributes_Secondary_MaxFood;
 	FGameplayTag Attributes_Secondary_MaxHealth;
 	FGameplayTag Attributes_Secondary_MaxWater;
-	// no neee of maxwarmth
+	// (comment kept from you) no neee of maxwarmth
 	FGameplayTag Attributes_Secondary_MaxTrust;
 	FGameplayTag Attributes_Secondary_MaxMorale;
-	
 
+	// -------------------------
+	// Vital Attributes (live values)
+	// -------------------------
 	FGameplayTag Attributes_Vital_Health;
 	FGameplayTag Attributes_Vital_Food;
 	FGameplayTag Attributes_Vital_Water;
@@ -216,12 +255,15 @@ public:
 	FGameplayTag Attributes_Vital_Morale;
 	FGameplayTag Attributes_Vital_Trust;
 
+	// -------------------------
+	// Meta Attributes (incoming)
+	// -------------------------
 	FGameplayTag Attributes_Meta_IncomingDamage;
 	FGameplayTag Attributes_Meta_IncomingHeal;
 
-	// =========================
-	// Culture Attributes (0..100, 50 = neutral where axis-like)
-	// =========================
+	// =====================================================================
+	// CULTURE ATTRIBUTES (0..100, 50 = neutral where axis-like)
+	// =====================================================================
 	FGameplayTag Attributes_Culture_Empathy;
 	FGameplayTag Attributes_Culture_Hierarchy;
 	FGameplayTag Attributes_Culture_Violence;
@@ -232,9 +274,9 @@ public:
 	FGameplayTag Attributes_Culture_TabooStrictness;
 	FGameplayTag Attributes_Culture_DietBalance;
 
-	// =========================
-	// Knowledge Attributes (0..100)
-	// =========================
+	// =====================================================================
+	// KNOWLEDGE ATTRIBUTES (0..100)
+	// =====================================================================
 	FGameplayTag Attributes_Knowledge_Medicine;
 	FGameplayTag Attributes_Knowledge_Hunting;
 	FGameplayTag Attributes_Knowledge_Survival;
@@ -243,16 +285,22 @@ public:
 	FGameplayTag Attributes_Knowledge_Courage;
 	FGameplayTag Attributes_Knowledge_Spiritual;
 
-	// =========================
-	// Worldline Axis Attributes (0..100, 50 = neutral)
-	// =========================
+	// =====================================================================
+	// WORLDLINE AXIS ATTRIBUTES (0..100, 50 = neutral)
+	// Axis meaning:
+	// - MercyRuthless:      Barmherzig  <-> Gnadenlos
+	// - TraditionInnovation:Tradition   <-> Innovation
+	// - CollectiveIndividual:Kollektiv  <-> Individualismus
+	// - SpiritualPractical: Spiritualität <-> Pragmatismus
+	// - XenoOpenFear:      Weltoffen    <-> Fremdenfurcht
+	// - TabooLooseStrict:  Locker       <-> Streng
+	// =====================================================================
 	FGameplayTag Attributes_Worldline_MercyRuthless;
 	FGameplayTag Attributes_Worldline_TraditionInnovation;
 	FGameplayTag Attributes_Worldline_CollectiveIndividual;
 	FGameplayTag Attributes_Worldline_SpiritualPractical;
 	FGameplayTag Attributes_Worldline_XenoOpenFear;
 	FGameplayTag Attributes_Worldline_TabooLooseStrict;
-
 
 private:
 	static FStoneGameplayTags GameplayTags;

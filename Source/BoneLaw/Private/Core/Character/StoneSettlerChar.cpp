@@ -21,7 +21,7 @@ AStoneSettlerChar::AStoneSettlerChar()
 	if (AbilitySystemComponent)
 	{
 		AbilitySystemComponent->SetIsReplicated(true);
-		AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
+		AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 	}
 }
 
@@ -146,7 +146,10 @@ void AStoneSettlerChar::InitAbilityActorInfo()
 		GiveStartupAbilities();
 
 		bDidDefaultInit = true;
-
+		
+		// Default state
+		SetState_Idle();
+		
 		UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] DefaultInit DONE Pawn=%s"), *GetName());
 	}
 
@@ -181,6 +184,11 @@ void AStoneSettlerChar::GiveStartupAbilities() const
 
 	UStoneAbilitySystemLibrary::GiveStartupAbilities(this, StoneASC, CharacterClass);
 }
+
+
+// -------------------------
+// GAS State via GameplayEffects (SSOT: SettlerChar)
+// -------------------------
 
 void AStoneSettlerChar::ApplySavedState(const FSavedSettler& SettlerData)
 {
@@ -278,4 +286,99 @@ void AStoneSettlerChar::ApplySavedState(const FSavedSettler& SettlerData)
 
 	bDidApplySavedState = true;
 	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] ApplySavedState DONE Pawn=%s"), *GetName());
+}
+
+FActiveGameplayEffectHandle AStoneSettlerChar::ApplyStateEffect(TSubclassOf<UGameplayEffect> EffectClass, float EffectLevel)
+{
+	if (!HasAuthority())
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("[StoneSettlerChar] ApplyStateEffect ignored (not authority). Pawn=%s"), *GetName());
+		return FActiveGameplayEffectHandle();
+	}
+
+	if (!AbilitySystemComponent || !EffectClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneSettlerChar] ApplyStateEffect failed: ASC or EffectClass null. Pawn=%s ASC=%s Effect=%s"),
+			*GetName(), *GetNameSafe(AbilitySystemComponent), *GetNameSafe(EffectClass.Get()));
+		return FActiveGameplayEffectHandle();
+	}
+
+	FGameplayEffectContextHandle ContextHandle = AbilitySystemComponent->MakeEffectContext();
+	ContextHandle.AddSourceObject(this);
+
+	const FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(EffectClass, EffectLevel, ContextHandle);
+	if (!SpecHandle.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneSettlerChar] ApplyStateEffect failed: Spec invalid. Pawn=%s Effect=%s"),
+			*GetName(), *GetNameSafe(EffectClass.Get()));
+		return FActiveGameplayEffectHandle();
+	}
+
+	return AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+}
+
+void AStoneSettlerChar::RemoveStateEffect(FActiveGameplayEffectHandle& Handle)
+{
+	if (!HasAuthority()) return;
+
+	if (AbilitySystemComponent && Handle.IsValid())
+	{
+		AbilitySystemComponent->RemoveActiveGameplayEffect(Handle);
+	}
+	Handle.Invalidate();
+}
+
+void AStoneSettlerChar::ClearStateEffects()
+{
+	if (!HasAuthority())
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("[StoneSettlerChar] ClearStateEffects ignored (not authority). Pawn=%s"), *GetName());
+		return;
+	}
+	RemoveStateEffect(Handle_State_Idle);
+	RemoveStateEffect(Handle_State_TravelToActionStart);
+	RemoveStateEffect(Handle_State_ActionRunning);
+	RemoveStateEffect(Handle_State_TravelReturning);
+}
+
+void AStoneSettlerChar::SetState_Idle()
+{
+	if (!HasAuthority()) return;
+
+	ClearStateEffects();
+
+	if (!GE_State_Idle)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneSettlerChar] SetState_Idle: GE_State_Idle is not set. Pawn=%s"), *GetName());
+		return;
+	}
+
+	Handle_State_Idle = ApplyStateEffect(GE_State_Idle, 1.f);
+}
+
+void AStoneSettlerChar::SetState_TravelToActionStart()
+{
+	if (!HasAuthority()) return;
+
+	// Clean slate
+	ClearStateEffects();
+
+	// Apply
+	Handle_State_TravelToActionStart = ApplyStateEffect(GE_State_TravelToActionStart, 1.f);
+}
+
+void AStoneSettlerChar::SetState_ActionRunning()
+{
+	if (!HasAuthority()) return;
+
+	ClearStateEffects();
+	Handle_State_ActionRunning = ApplyStateEffect(GE_State_ActionRunning, 1.f);
+}
+
+void AStoneSettlerChar::SetState_TravelReturning()
+{
+	if (!HasAuthority()) return;
+
+	ClearStateEffects();
+	Handle_State_TravelReturning = ApplyStateEffect(GE_State_TravelReturning, 1.f);
 }

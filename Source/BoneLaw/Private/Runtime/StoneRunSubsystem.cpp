@@ -15,22 +15,53 @@
 #include "Library/StoneEventLibrary.h"
 #include "Library/StonePackLibrary.h"
 
-
 #include "Engine/World.h"
 #include "TimerManager.h"
+
+// GAS helper
+#include "AbilitySystemBlueprintLibrary.h"
 
 float UStoneRunSubsystem::GetSimulationSpeed() const
 {
 	// Effective simulation speed used for action ticking.
 	// - UserSimSpeed: UI/cheat-controlled speed (0..10)
 	// - WorldTimeSpeedMult: world clock multiplier (e.g. UDS time speed)
-	// The ability-system multiplier is applied in StoneActionSubsystem via ResolveActionSpeedMult().
 	return FMath::Clamp(UserSimSpeed * WorldTimeSpeedMult, 0.f, 10.f);
 }
 
 void UStoneRunSubsystem::SetWorldTimeSpeedMultiplier(float NewWorldTimeSpeed)
 {
 	WorldTimeSpeedMult = FMath::Clamp(NewWorldTimeSpeed, 0.f, 10.f);
+}
+
+void UStoneRunSubsystem::SetActiveAgent(AActor* AgentActor)
+{
+	ActiveAgentActor = AgentActor;
+	ActiveAgentASC.Reset();
+
+	if (!AgentActor)
+	{
+		return;
+	}
+
+	// Prefer ASC on the agent itself.
+	if (UAbilitySystemComponent* ASC = Cast<UAbilitySystemComponent>(AgentActor->FindComponentByClass(UAbilitySystemComponent::StaticClass())))
+	{
+		ActiveAgentASC = ASC;
+		return;
+	}
+
+	// Fallback: if the agent is an AbilitySystemInterface implementer, resolve via helper.
+	if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(AgentActor))
+	{
+		ActiveAgentASC = ASC;
+	}
+}
+
+void UStoneRunSubsystem::ClearActiveAgent()
+{
+	ActiveAgentActor.Reset();
+	ActiveAgentASC.Reset();
 }
 
 
@@ -189,12 +220,12 @@ void UStoneRunSubsystem::StartExploreExpedition(FName ExplorePackId, float Durat
 		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] StartExploreExpedition: ExplorePackId is None"));
 		return;
 	}
-	
+
 	// Demo rule: do not stack real-time actions.
-	if (bTravelActive)
-		{
-		StopTravelAction(/*bForceReturnHomeEvent*/ false);
-		}
+if (bTravelActive)
+{
+	StopTravelAction(/*bForceReturnHomeEvent*/ false);
+}
 
 	// Ensure core systems exist.
 	if (!EnsurePlayerStateCache())
@@ -403,6 +434,12 @@ AStonePlayerState* UStoneRunSubsystem::GetPlayerState() const
 
 UAbilitySystemComponent* UStoneRunSubsystem::GetASC() const
 {
+	// If a Settler (or other agent) is currently active, events/outcomes target that agent.
+	if (ActiveAgentASC.IsValid())
+	{
+		return ActiveAgentASC.Get();
+	}
+
 	if (CachedPlayerState.IsValid())
 	{
 		return CachedPlayerState->GetAbilitySystemComponent();
@@ -933,14 +970,13 @@ void UStoneRunSubsystem::ApplyChoice(int32 ChoiceIndex)
 	IncrementChoiceCounter();
 
 	// REALTIME ACTION RULE:
-	// During ANY real-time action (Expedition, Travel via ActionSubsystem, or Travel via RunSubsystem)
+	// During ANY real-time action (Expedition or Travel via RunSubsystem)
 	// we do NOT chain into the next random event immediately.
 	// Instead we:
 	//   1) Open the next pending event if one was queued (e.g. Arrival queued while Outbound was open)
 	//   2) If no pending: clear event and return to "travel running, no event" state
 	//
-	// We check BOTH the tag-based state AND the ActionSubsystem directly,
-	// because ExecuteChoiceOutcomes may strip tags before we get here.
+	// We check tag-based state because ExecuteChoiceOutcomes may strip tags before we get here.
 	const FStoneGameplayTags& T = FStoneGameplayTags::Get();
 	const bool bTagGate = RunTags.HasTag(T.State_OnAction) || RunTags.HasTag(T.State_OnExpedition);
 
@@ -1469,7 +1505,7 @@ void UStoneRunSubsystem::StartTravelAction(FName InTravelPackId, float TotalSeco
 		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] StartTravelAction: TravelPackId is None"));
 		return;
 	}
-	
+
 	// Demo rule: do not stack real-time actions.
 	if (bExpeditionActive)
 	{

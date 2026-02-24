@@ -129,6 +129,27 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 		FString("Found: Sharp Stone")
 		);
 	
+	// BB used Tags
+	GameplayTags.State_Idle = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Idle"),
+		FString("Idle: Idle")
+		);
+	
+	GameplayTags.State_Travel_ToActionStart = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Travel.ToActionStart"),
+		FString("Travel: To Action Start")
+		);
+	
+	GameplayTags.State_Travel_Returning = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Travel.Returning"),
+		FString("Travel: Returning")
+		);
+	
+	GameplayTags.State_Action_Running = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Action.Running"),
+		FString("Running: Running")
+		);
+	
 	// =========================
 	// Action Tags (Action System - separate from Events)
 	// =========================
@@ -535,122 +556,140 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 	// =========================
 	// Attributes (GAS)
 	// =========================
+
+	// -------------------------
+	// Primary Attributes
+	// -------------------------
 	GameplayTags.Attributes_Primary_Strength = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Primary.Strength"), 
-	    FString("Primary attribute: Strength")
-	    );
+		FName("Attributes.Primary.Strength"),
+		FString("Primary attribute: Strength")
+	);
 
 	GameplayTags.Attributes_Primary_Intelligence = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Primary.Intelligence"), 
-	    FString("Primary attribute: Intelligence")
-	    );
+		FName("Attributes.Primary.Intelligence"),
+		FString("Primary attribute: Intelligence")
+	);
 
 	GameplayTags.Attributes_Primary_Endurance = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Primary.Endurance"),
-	    FString("Primary attribute: Endurance")
-	    );
+		FName("Attributes.Primary.Endurance"),
+		FString("Primary attribute: Endurance")
+	);
 
 	GameplayTags.Attributes_Primary_Willpower = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Primary.Willpower"),
-	    FString("Primary attribute: Willpower")
-	    );
+		FName("Attributes.Primary.Willpower"),
+		FString("Primary attribute: Willpower")
+	);
 
 	GameplayTags.Attributes_Primary_Social = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Primary.Social"), 
-	    FString("Primary attribute: Social / Trust handling")
-	    );
+		FName("Attributes.Primary.Social"),
+		FString("Primary attribute: Social / Trust handling")
+	);
 
+	// -------------------------
+	// Secondary Attributes
+	// -------------------------
 	GameplayTags.Attributes_Secondary_CarryCapacity = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Secondary.CarryCapacity"), 
-	    FString("Secondary attribute: Carry capacity")
-	    );
+		FName("Attributes.Secondary.CarryCapacity"),
+		FString("Secondary attribute: Carry capacity")
+	);
 
 	GameplayTags.Attributes_Secondary_TravelSpeed = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Secondary.TravelSpeed"),
-	    FString("Secondary attribute: Travel speed")
-	    );
+		FName("Attributes.Secondary.TravelSpeed"),
+		FString("Secondary attribute: Travel speed")
+	);
 
 	GameplayTags.Attributes_Secondary_CraftSpeed = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Secondary.CraftSpeed"), 
-	    FString("Secondary attribute: Craft speed")
-	    );
+		FName("Attributes.Secondary.CraftSpeed"),
+		FString("Secondary attribute: Craft speed")
+	);
 
 	GameplayTags.Attributes_Secondary_GatherEfficiency = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Secondary.GatherEfficiency"), 
-	    FString("Secondary attribute: Gather efficiency")
-	    );
+		FName("Attributes.Secondary.GatherEfficiency"),
+		FString("Secondary attribute: Gather efficiency")
+	);
 
 	GameplayTags.Attributes_Secondary_InjuryResistance = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Secondary.InjuryResistance"), 
-	    FString("Secondary attribute: Injury resistance")
-	    );
+		FName("Attributes.Secondary.InjuryResistance"),
+		FString("Secondary attribute: Injury resistance")
+	);
 
-	GameplayTags.Attributes_Vital_Health = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Vital.Health"), 
-	    FString("Vital attribute: Health")
-	    );
-
-	GameplayTags.Attributes_Secondary_MaxHealth = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Secondary.MaxHealth"), 
-	    FString("Secondary attribute: MaxHealth")
-	    );
-
-	GameplayTags.Attributes_Vital_Food = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Vital.Food"), 
-	    FString("Vital attribute: Food")
-	    );
-	
+	// -------------------------
+	// Secondary Max Pools (caps)
+	// -------------------------
 	GameplayTags.Attributes_Secondary_MaxFood = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Attributes.Secondary.MaxFood"),
 		FString("Secondary attribute: MaxFood")
-		);
+	);
 
-	GameplayTags.Attributes_Vital_Water = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Vital.Water"),
-	    FString("Vital attribute: Water")
-	    );
-	
+	GameplayTags.Attributes_Secondary_MaxHealth = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Secondary.MaxHealth"),
+		FString("Secondary attribute: MaxHealth")
+	);
+
 	GameplayTags.Attributes_Secondary_MaxWater = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Attributes.Secondary.MaxWater"),
 		FString("Secondary attribute: MaxWater")
-		);
+	);
 
-	GameplayTags.Attributes_Vital_Warmth = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Vital.Warmth"), 
-	    FString("Vital attribute: Warmth")
-	    );
+	// no neee of maxwarmth
 
-	GameplayTags.Attributes_Vital_Morale = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Vital.Morale"),
-	    FString("Vital attribute: Morale")
-	    );
-	
-	GameplayTags.Attributes_Secondary_MaxMorale = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Attributes.Secondary.MaxMorale"),
-		FString("Secondary attribute: MaxMorale")
-		);
-
-	GameplayTags.Attributes_Vital_Trust = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Vital.Trust"), 
-	    FString("Vital attribute: Trust")
-	    );
-	
 	GameplayTags.Attributes_Secondary_MaxTrust = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Attributes.Secondary.MaxTrust"),
 		FString("Secondary attribute: MaxTrust")
-		);
+	);
 
+	GameplayTags.Attributes_Secondary_MaxMorale = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Secondary.MaxMorale"),
+		FString("Secondary attribute: MaxMorale")
+	);
+
+	// -------------------------
+	// Vital Attributes (live values)
+	// -------------------------
+	GameplayTags.Attributes_Vital_Health = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Vital.Health"),
+		FString("Vital attribute: Health")
+	);
+
+	GameplayTags.Attributes_Vital_Food = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Vital.Food"),
+		FString("Vital attribute: Food")
+	);
+
+	GameplayTags.Attributes_Vital_Water = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Vital.Water"),
+		FString("Vital attribute: Water")
+	);
+
+	GameplayTags.Attributes_Vital_Warmth = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Vital.Warmth"),
+		FString("Vital attribute: Warmth")
+	);
+
+	GameplayTags.Attributes_Vital_Morale = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Vital.Morale"),
+		FString("Vital attribute: Morale")
+	);
+
+	GameplayTags.Attributes_Vital_Trust = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Vital.Trust"),
+		FString("Vital attribute: Trust")
+	);
+
+	// -------------------------
+	// Meta Attributes (incoming)
+	// -------------------------
 	GameplayTags.Attributes_Meta_IncomingDamage = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Meta.IncomingDamage"), 
-	    FString("Meta attribute: Incoming damage")
-	    );
+		FName("Attributes.Meta.IncomingDamage"),
+		FString("Meta attribute: Incoming damage")
+	);
 
 	GameplayTags.Attributes_Meta_IncomingHeal = UGameplayTagsManager::Get().AddNativeGameplayTag(
-	    FName("Attributes.Meta.IncomingHeal"),
-	    FString("Meta attribute: Incoming heal")
-	    );
+		FName("Attributes.Meta.IncomingHeal"),
+		FString("Meta attribute: Incoming heal")
+	);
 
-	// =========================
+		// =========================
 	// Culture Attributes (GAS)
 	// =========================
 	GameplayTags.Attributes_Culture_Empathy = UGameplayTagsManager::Get().AddNativeGameplayTag(

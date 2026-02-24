@@ -20,6 +20,8 @@ class UStoneScheduler;
 class UStoneEventResolver;
 class UStoneOutcomeExecutor;
 class AStonePlayerState;
+class UAbilitySystemComponent;
+class AActor;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneSnapshotChanged, const FStoneSnapshot&, Snapshot);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneEventChanged, const UStoneEventData*, Event);
@@ -76,10 +78,23 @@ public:
 	// === Lifecycle ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Run")
 	void StartNewRun(const FStoneRunConfig& Config);
+
+	// === Active Agent (who receives event outcomes) ===
+	// The run system is global (GameInstanceSubsystem), but events/outcomes may target a specific agent
+	// (e.g. the currently commanded Settler). When set, resolver checks + outcome execution use the
+	// agent's AbilitySystemComponent instead of the PlayerState ASC.
+	UFUNCTION(BlueprintCallable, Category="Stone|Run")
+	void SetActiveAgent(AActor* AgentActor);
+
+	UFUNCTION(BlueprintCallable, Category="Stone|Run")
+	void ClearActiveAgent();
+
+	UFUNCTION(BlueprintPure, Category="Stone|Run")
+	AActor* GetActiveAgent() const { return ActiveAgentActor.Get(); }
 	
 	// === Simulation Speed ===
 	// Effective simulation speed used for action ticking (0 = paused).
-	// This is separate from the Ability-System speed multiplier (handled in StoneActionSubsystem).
+	// This is separate from any Ability-System speed multiplier you may apply on agents.
 	UFUNCTION(BlueprintCallable, Category="Stone|Sim")
 	void SetSimulationSpeed(float NewSpeed);
 
@@ -274,6 +289,14 @@ private:
 	UPROPERTY()
 	TWeakObjectPtr<AStonePlayerState> CachedPlayerState;
 
+	// Active agent override for event resolution/outcomes.
+	// When not set, we fall back to the PlayerState ASC.
+	UPROPERTY(Transient)
+	TWeakObjectPtr<AActor> ActiveAgentActor;
+
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UAbilitySystemComponent> ActiveAgentASC;
+
 	/** Attempts to find and cache the local player's PlayerState. Returns true if valid. */
 	bool EnsurePlayerStateCache();
 
@@ -372,7 +395,7 @@ private:
 
 	UPROPERTY()
 	bool bAutoPackUnlocksEnabled = true;
-
+	
 	// --- Expedition runtime state (real-time) ---
 	UPROPERTY()
 	bool bExpeditionActive = false;

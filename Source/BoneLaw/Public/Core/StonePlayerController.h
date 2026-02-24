@@ -7,7 +7,6 @@
 #include "GameplayTagContainer.h"
 #include "StonePlayerController.generated.h"
 
-class UStoneAbilitySystemComponent;
 class UInputMappingContext;
 class UInputAction;
 class UStoneInputConfig;
@@ -28,11 +27,9 @@ protected:
 	virtual void SetupInputComponent() override;
 
 private:
-	UPROPERTY()
-	TObjectPtr<UStoneAbilitySystemComponent> StoneAbilitySystemComponent;
+	// NOTE: PlayerController does not own actions/events. Settlers do.
+	// Keep this class focused on camera + input + HUD init.
 
-	UStoneAbilitySystemComponent* GetASC();
-	
 	// ==========================================
 	// CAMERA / COMMANDER WORKFLOW
 	// ==========================================
@@ -163,6 +160,7 @@ protected:
 	virtual void OnRep_PlayerState() override;
 
 private:
+
 	void TryInitOverlay();
 
 	UPROPERTY(Transient)

@@ -13,6 +13,9 @@ class UAbilitySystemComponent;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FStoneSettlerActionStateChanged);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneSettlerActionProgressChanged, float, Progress01);
 
+DECLARE_MULTICAST_DELEGATE_TwoParams(FStoneSettlerActionFinishedNative, const UStoneActionDefinitionData* /*Action*/, bool /*bSuccess*/);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FStoneSettlerActionFinished, const UStoneActionDefinitionData*, Action, bool, bSuccess);
+
 /**
  * Per-Settler Action Component
  * Replaces the global ActionSubsystem approach with component-based actions.
@@ -47,6 +50,10 @@ public:
 	/** Is this settler currently executing an action? */
 	UFUNCTION(BlueprintPure, Category = "Stone|Action")
 	bool IsActionRunning() const { return bActionRunning; }
+
+	/** Stops the current action and reports success/failure. (Preferred API) */
+	UFUNCTION(BlueprintCallable, Category = "Stone|Action")
+	void StopAction(bool bSuccess = true);
 
 	/** Current phase of the action */
 	UFUNCTION(BlueprintPure, Category = "Stone|Action")
@@ -109,7 +116,15 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Stone|Action")
 	FStoneSettlerActionProgressChanged OnActionProgressChanged;
 
+	/** Fired whenever the action ends (success/fail). */
+	UPROPERTY(BlueprintAssignable, Category = "Stone|Action")
+	FStoneSettlerActionFinished OnActionFinished;
+
+	/** Native version used by BT tasks (avoids dynamic bind overhead). */
+	FStoneSettlerActionFinishedNative OnActionFinishedNative;
+
 private:
+	void StopInternal(bool bSuccess, bool bForceReturnHomeEvent);
 	void TickAction();
 	void AdvancePhaseTimeline(float AdvanceBaseSeconds);
 	void EnterPhase(EStoneActionPhase NewPhase);
@@ -150,4 +165,7 @@ private:
 	TArray<FName> ActivatedPackIds;
 
 	FRandomStream RNG;
+
+	/** If we set RunSubsystem's active agent during StartAction(), we clear it on StopAction(). */
+	bool bOwnsRunActiveAgent = false;
 };

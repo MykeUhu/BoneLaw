@@ -121,11 +121,11 @@ void UStoneSettlerActionComponent::ApplyRunSideEffects()
 	}
 
 	// Apply state tags (event requirements rely on these!)
-	AppliedStateTags = CurrentDef->GrantedStateTags;
-	if (!AppliedStateTags.IsEmpty())
+	if (UAbilitySystemComponent* ASC = GetASC())
 	{
-		Run->AddStateTags(AppliedStateTags);
+		ASC->AddLooseGameplayTags(CurrentDef->GrantedStateTags);
 	}
+	AppliedStateTags = CurrentDef->GrantedStateTags;
 }
 
 void UStoneSettlerActionComponent::RemoveRunSideEffects()
@@ -152,7 +152,10 @@ void UStoneSettlerActionComponent::RemoveRunSideEffects()
 
 	if (!AppliedStateTags.IsEmpty())
 	{
-		Run->RemoveStateTags(AppliedStateTags);
+		if (UAbilitySystemComponent* ASC = GetASC())
+		{
+			ASC->RemoveLooseGameplayTags(AppliedStateTags);
+		}
 		AppliedStateTags.Reset();
 	}
 
@@ -216,6 +219,13 @@ bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* Actio
 	OutboundIndex = 0;
 	ReturnIndex = 0;
 
+	// Route resolver checks + outcome execution to THIS settler while the action runs.
+	if (UStoneRunSubsystem* Run = GetRun())
+	{
+		Run->SetActiveAgent(GetOwner());
+		bOwnsRunActiveAgent = true;
+	}
+
 	// Apply packs + tags so arrival event requirements can pass
 	ApplyRunSideEffects();
 
@@ -238,12 +248,40 @@ bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* Actio
 	return true;
 }
 
+static void ClearRunActiveAgentIfOwned(UStoneRunSubsystem* Run, AActor* OwnerActor, bool& bOwns)
+{
+	if (!Run || !bOwns)
+	{
+		return;
+	}
+
+	if (Run->GetActiveAgent() == OwnerActor)
+	{
+		Run->ClearActiveAgent();
+	}
+	
+	bOwns = false;
+}
+
+void UStoneSettlerActionComponent::StopAction(bool bSuccess)
+{
+	// Preferred API: end action without forcing a return-home event.
+	StopInternal(bSuccess, /*bForceReturnHomeEvent*/ false);
+}
+
 void UStoneSettlerActionComponent::StopCurrentAction(bool bForceReturnHomeEvent)
+{
+	StopInternal(/*bSuccess*/ true, bForceReturnHomeEvent);
+}
+
+void UStoneSettlerActionComponent::StopInternal(bool bSuccess, bool bForceReturnHomeEvent)
 {
 	if (!bActionRunning)
 	{
 		return;
 	}
+
+	const TObjectPtr<UStoneActionDefinitionData> FinishedDef = CurrentDef;
 
 	if (UWorld* World = GetWorld())
 	{
@@ -275,7 +313,14 @@ void UStoneSettlerActionComponent::StopCurrentAction(bool bForceReturnHomeEvent)
 	TotalElapsedBaseSeconds = 0.f;
 
 	OnActionStateChanged.Broadcast();
-	UE_LOG(LogTemp, Log, TEXT("[SettlerAction] Stopped action"));
+	UE_LOG(LogTemp, Log, TEXT("[SettlerAction] Stopped action (Success=%s)"), bSuccess ? TEXT("true") : TEXT("false"));
+
+	// Notify listeners after state reset.
+	OnActionFinished.Broadcast(FinishedDef, bSuccess);
+	OnActionFinishedNative.Broadcast(FinishedDef, bSuccess);
+
+	// Clear RunSubsystem agent override if we set it.
+	ClearRunActiveAgentIfOwned(GetRun(), GetOwner(), bOwnsRunActiveAgent);
 }
 
 void UStoneSettlerActionComponent::TickAction()
