@@ -215,6 +215,8 @@ void UStoneRunSubsystem::ForceReturnEvent()
 
 void UStoneRunSubsystem::StartExploreExpedition(FName ExplorePackId, float DurationSeconds, float MinEventGapSeconds, float MaxEventGapSeconds, bool bTriggerFirstEventImmediately)
 {
+	EnsureCoreSystems();
+	
 	if (ExplorePackId.IsNone())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] StartExploreExpedition: ExplorePackId is None"));
@@ -574,6 +576,8 @@ void UStoneRunSubsystem::EnsurePackLibrary(bool bPreloadAllSync)
 	PackLibrary->GetAllKnownPackIds(KnownPackIds);
 }
 
+
+
 void UStoneRunSubsystem::TryAutoUnlockPacks()
 {
 	if (!bAutoPackUnlocksEnabled)
@@ -726,6 +730,7 @@ bool UStoneRunSubsystem::ShouldIdleBetweenEvents() const
 
 void UStoneRunSubsystem::PickNextEvent(bool bAllowScheduledOverride, bool bAllowRandomFromPool, bool bForceRandomEvenIfIdle)
 {
+	EnsureCoreSystems();
 	// 0) if realtime queue has something ready, show it first
 	if (RealtimeForcedQueue.Num() > 0)
 	{
@@ -946,6 +951,8 @@ void UStoneRunSubsystem::ExecuteChoiceOutcomes(const FStoneChoiceData& Choice, b
 
 void UStoneRunSubsystem::ApplyChoice(int32 ChoiceIndex)
 {
+	EnsureCoreSystems();
+	
 	if (!CurrentEvent) return;
 	if (!CurrentEvent->Choices.IsValidIndex(ChoiceIndex)) return;
 
@@ -1288,10 +1295,83 @@ void UStoneRunSubsystem::DeactivateTemporaryPacksByIds(const TArray<FName>& Pack
 
 void UStoneRunSubsystem::QueueEventByTag(const FGameplayTag& EventTag, bool bAutoPresent)
 {
+	EnsureCoreSystems();
+	
 	FName PickedEventId;
 	if (!TryPickEventIdByTag(EventTag, PickedEventId) || PickedEventId.IsNone())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[StoneRunSubsystem] QueueEventByTag: No event found for tag: %s"), *EventTag.ToString());
+		const int32 PoolCount = EventPoolIds.Num();
+		const int32 ActivePacksCount = ActivePackIds.Num();
+
+		// Hard preconditions
+		if (!Resolver)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] QueueEventByTag FAIL: Resolver is null. Tag=%s Pool=%d ActivePacks=%d"),
+				*EventTag.ToString(), PoolCount, ActivePacksCount);
+			return;
+		}
+
+		UAbilitySystemComponent* ASC = GetASC();
+		if (!ASC)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] QueueEventByTag FAIL: ASC is null. Tag=%s Pool=%d ActivePacks=%d"),
+				*EventTag.ToString(), PoolCount, ActivePacksCount);
+			return;
+		}
+
+		if (PoolCount == 0)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] QueueEventByTag FAIL: EventPoolIds is EMPTY. Tag=%s ActivePacks=%d (starting packs/config?)"),
+				*EventTag.ToString(), ActivePacksCount);
+			return;
+		}
+
+		// Detailed breakdown
+		int32 LoadedOk = 0;
+		int32 LoadFailed = 0;
+		int32 WithTag = 0;
+		int32 PassReq = 0;
+		int32 WeightPos = 0;
+
+		FStoneSnapshot TempSnap = Snapshot;
+		TempSnap.FocusTag = FocusTag;
+		TempSnap.Time = Time;
+		TempSnap.RunTags = RunTags;
+
+		for (const FName& Id : EventPoolIds)
+		{
+			UStoneEventData* Ev = LoadEventById(Id);
+			if (!Ev)
+			{
+				LoadFailed++;
+				continue;
+			}
+			LoadedOk++;
+
+			if (EventTag.IsValid() && !Ev->EventTags.HasTag(EventTag))
+			{
+				continue;
+			}
+			WithTag++;
+
+			if (!Resolver->EvaluateRequirement(Ev->Requirement, ASC, RunTags))
+			{
+				continue;
+			}
+			PassReq++;
+
+			const int32 W = Resolver->ComputeFinalWeight(Ev, TempSnap);
+			if (W <= 0)
+			{
+				continue;
+			}
+			WeightPos++;
+		}
+
+		UE_LOG(LogTemp, Warning,
+			TEXT("[StoneRunSubsystem] QueueEventByTag FAIL: Tag=%s Pool=%d ActivePacks=%d LoadedOk=%d LoadFailed=%d WithTag=%d PassReq=%d WeightPos=%d"),
+			*EventTag.ToString(), PoolCount, ActivePacksCount, LoadedOk, LoadFailed, WithTag, PassReq, WeightPos);
+
 		return;
 	}
 
@@ -1431,8 +1511,11 @@ void UStoneRunSubsystem::PoolRemoveEvent(FName EventId)
 	}
 }
 
-bool UStoneRunSubsystem::TryPickEventIdByTag(const FGameplayTag& RequiredTag, FName& OutEventId) const
+bool UStoneRunSubsystem::TryPickEventIdByTag(const FGameplayTag& RequiredTag, FName& OutEventId)
 {
+	EnsureCoreSystems();
+	
+	
 	OutEventId = NAME_None;
 
 	if (!Resolver || EventPoolIds.Num() == 0)
@@ -1500,6 +1583,8 @@ bool UStoneRunSubsystem::TryPickEventIdByTag(const FGameplayTag& RequiredTag, FN
 
 void UStoneRunSubsystem::StartTravelAction(FName InTravelPackId, float TotalSecondsAtSpeed1, float RandomMinGapSeconds, float RandomMaxGapSeconds, float RandomChance01, bool bTriggerFirstOutboundEventImmediately)
 {
+	EnsureCoreSystems();
+	
 	if (InTravelPackId.IsNone())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[StoneRunSubsystem] StartTravelAction: TravelPackId is None"));
@@ -1744,6 +1829,8 @@ bool UStoneRunSubsystem::TryRollAmbientEvent(float Chance01, bool bAutoPresent)
 
 bool UStoneRunSubsystem::OpenNextPendingEvent()
 {
+	EnsureCoreSystems();
+	
 	if (CurrentEvent || PendingEventIds.Num() == 0)
 	{
 		return false;
@@ -1922,5 +2009,21 @@ void UStoneRunSubsystem::TickRealtimeActions()
 				return;
 			}
 		}
+	}
+}
+
+void UStoneRunSubsystem::EnsureCoreSystems()
+{
+	if (!Scheduler)
+	{
+		Scheduler = NewObject<UStoneScheduler>(this);
+	}
+	if (!Resolver)
+	{
+		Resolver = NewObject<UStoneEventResolver>(this);
+	}
+	if (!OutcomeExecutor)
+	{
+		OutcomeExecutor = NewObject<UStoneOutcomeExecutor>(this);
 	}
 }

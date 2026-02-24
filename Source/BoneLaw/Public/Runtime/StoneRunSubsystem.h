@@ -486,7 +486,7 @@ private:
 	void DeactivatePackInternal(FName PackId);
 
 	// Generic tag-based picker (used for travel phases)
-	bool TryPickEventIdByTag(const FGameplayTag& RequiredTag, FName& OutEventId) const;
+	bool TryPickEventIdByTag(const FGameplayTag& RequiredTag, FName& OutEventId);
 
 	// Travel ticking / forced phases
 	void StartRealtimeActionTick();
@@ -498,5 +498,8 @@ private:
 
 	void TryAutoUnlockPacks();
 	void EnsurePackLibrary(bool bPreloadAllSync);
+	
+	// Todo from old Event system that we need for run but should be replaced soon only actionsystem is king
+	void EnsureCoreSystems();
 	
 };
