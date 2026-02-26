@@ -32,20 +32,16 @@ namespace StoneOutcome
 	}
 }
 
-void UStoneOutcomeExecutor::ApplyOutcomes(const TArray<FStoneOutcome>& Outcomes, UStoneRunSubsystem* Run, const FStoneOutcomeContext& Ctx)
+void UStoneOutcomeExecutor::ApplyOutcomes(const TArray<FStoneOutcome>& Outcomes, const FStoneOutcomeContext& Ctx)
 {
-	if (!Run) return;
-
 	for (const FStoneOutcome& O : Outcomes)
 	{
-		ApplyOutcome(O, Run, Ctx);
+		ApplyOutcome(O, Ctx);
 	}
 }
 
-void UStoneOutcomeExecutor::ApplyOutcome(const FStoneOutcome& O, UStoneRunSubsystem* Run, const FStoneOutcomeContext& Ctx)
+void UStoneOutcomeExecutor::ApplyOutcome(const FStoneOutcome& O, const FStoneOutcomeContext& Ctx)
 {
-	if (!Run) return;
-
 	switch (O.Type)
 	{
 	case EStoneOutcomeType::AttributeDelta:
@@ -65,73 +61,100 @@ void UStoneOutcomeExecutor::ApplyOutcome(const FStoneOutcome& O, UStoneRunSubsys
 
 		const float Current = Ctx.ASC->GetNumericAttribute(Attr);
 		const float Next = Current + O.Magnitude;
-
 		Ctx.ASC->SetNumericAttributeBase(Attr, Next);
 
-		UE_LOG(LogTemp, Warning, TEXT("[StoneOutcomeExecutor] AttributeDelta %s %+0.2f (%.2f -> %.2f)"),
+		UE_LOG(LogTemp, Log, TEXT("[StoneOutcomeExecutor] AttributeDelta %s %+0.2f (%.2f -> %.2f)"),
 			*O.AttributeTag.ToString(), O.Magnitude, Current, Next);
 		break;
 	}
 
 	case EStoneOutcomeType::ApplyGameplayEffect:
 	{
-		if (Ctx.ASC && *O.GameplayEffectClass)
+		if (!Ctx.ASC)
 		{
-			FGameplayEffectContextHandle EffectCtx = Ctx.ASC->MakeEffectContext();
-			EffectCtx.AddSourceObject(Run);
+			UE_LOG(LogTemp, Warning, TEXT("[StoneOutcomeExecutor] ApplyGameplayEffect requested but ASC is null."));
+			break;
+		}
+		if (!*O.GameplayEffectClass)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[StoneOutcomeExecutor] ApplyGameplayEffect requested but GameplayEffectClass is null."));
+			break;
+		}
 
-			const FGameplayEffectSpecHandle Spec = Ctx.ASC->MakeOutgoingSpec(O.GameplayEffectClass, 1.f, EffectCtx);
-			if (Spec.IsValid())
-			{
-				Ctx.ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-				UE_LOG(LogTemp, Warning, TEXT("[StoneOutcomeExecutor] Applied GE %s"), *O.GameplayEffectClass->GetName());
-			}
+		FGameplayEffectContextHandle EffectCtx = Ctx.ASC->MakeEffectContext();
+			EffectCtx.AddSourceObject(Ctx.SourceObject ? Ctx.SourceObject : Ctx.ASC->GetAvatarActor());
+
+		const FGameplayEffectSpecHandle Spec = Ctx.ASC->MakeOutgoingSpec(O.GameplayEffectClass, 1.f, EffectCtx);
+		if (Spec.IsValid())
+		{
+			Ctx.ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+			UE_LOG(LogTemp, Log, TEXT("[StoneOutcomeExecutor] Applied GE %s"), *O.GameplayEffectClass->GetName());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[StoneOutcomeExecutor] Failed to build GE spec for %s"), *O.GameplayEffectClass->GetName());
 		}
 		break;
 	}
 
 	case EStoneOutcomeType::AddTags:
+	{
+		// Local runtime tags (optional)
 		if (Ctx.Tags)
 		{
 			Ctx.Tags->AppendTags(O.Tags);
-			Run->AddStateTags(O.Tags);
 		}
+
+		// Authoritative GAS tags on the agent
+		if (Ctx.ASC && O.Tags.Num() > 0)
+		{
+			Ctx.ASC->AddLooseGameplayTags(O.Tags);
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("[StoneOutcomeExecutor] AddTags x%d"), O.Tags.Num());
 		break;
+	}
 
 	case EStoneOutcomeType::RemoveTags:
+	{
 		if (Ctx.Tags)
 		{
 			Ctx.Tags->RemoveTags(O.Tags);
-			Run->RemoveStateTags(O.Tags);
 		}
-		break;
 
-	case EStoneOutcomeType::ForceNextEvent:
-		Run->ForceNextEvent(O.EventId);
-		break;
+		if (Ctx.ASC && O.Tags.Num() > 0)
+		{
+			Ctx.ASC->RemoveLooseGameplayTags(O.Tags);
+		}
 
-	case EStoneOutcomeType::PoolAddEvent:
-		Run->PoolAddEvent(O.EventId);
+		UE_LOG(LogTemp, Log, TEXT("[StoneOutcomeExecutor] RemoveTags x%d"), O.Tags.Num());
 		break;
-
-	case EStoneOutcomeType::PoolRemoveEvent:
-		Run->PoolRemoveEvent(O.EventId);
-		break;
+	}
 
 	case EStoneOutcomeType::ScheduleEvent:
+	{
+		// (Optional) wenn du später Scheduler wieder willst – aktuell ohne RunSubsystem lassen wir es sauber “no-op”:
 		if (Ctx.Scheduler && Ctx.Time && O.Scheduled.IsValid())
 		{
 			Ctx.Scheduler->Enqueue(O.Scheduled, *Ctx.Time);
+			UE_LOG(LogTemp, Log, TEXT("[StoneOutcomeExecutor] ScheduledEvent enqueued."));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Verbose, TEXT("[StoneOutcomeExecutor] ScheduleEvent ignored (no scheduler/time)."));
 		}
 		break;
+	}
 
 	case EStoneOutcomeType::SetFocusTag:
-		if (Ctx.FocusTag && O.Tags.Num() > 0)
-		{
-			*Ctx.FocusTag = O.Tags.First();
-			Run->SetFocus(*Ctx.FocusTag);
-		}
+	case EStoneOutcomeType::ForceNextEvent:
+	case EStoneOutcomeType::PoolAddEvent:
+	case EStoneOutcomeType::PoolRemoveEvent:
+	{
+		// RunSubsystem-Only Features: bewusst deaktiviert, weil globale Events weg sind.
+		UE_LOG(LogTemp, Verbose, TEXT("[StoneOutcomeExecutor] Run-level outcome ignored (Type=%d)."), (int32)O.Type);
 		break;
+	}
 
 	default:
 		break;

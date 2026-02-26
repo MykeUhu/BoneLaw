@@ -83,24 +83,12 @@ public:
 	// High-level action types (used to select logic/pools)
 	FGameplayTag Action_Explore_Area;
 
-	// Action travel phases (action-driven flow, not random events)
-	FGameplayTag Action_Travel_Outbound;
-	FGameplayTag Action_Travel_Arrival;
-	FGameplayTag Action_Travel_Return;
-	FGameplayTag Action_Travel_ReturnHome;
-
-	// Gather phases
-	FGameplayTag Action_Gather_Outbound;
-	FGameplayTag Action_Gather_Arrival;
-	FGameplayTag Action_Gather_Return;
-	FGameplayTag Action_Gather_ReturnHome;
-
-	// Explore phases
-	FGameplayTag Action_Explore_Outbound;
-	FGameplayTag Action_Explore_Arrival;
-	FGameplayTag Action_Explore_Return;
-	FGameplayTag Action_Explore_ReturnHome;
-
+	// --- Abort / flow control (set by Outcome on settler ASC, polled by ActionComponent) ---
+	// Action.Abort            -> stop the action immediately as a failure
+	// Action.ReturnImmediately -> skip remaining outbound/arrival, jump straight to Return phase
+	FGameplayTag Action_Abort;
+	FGameplayTag Action_ReturnImmediately;
+	
 	// =====================================================================
 	// EXIT / TRANSITION TAGS (BP convenience)
 	// =====================================================================
@@ -131,40 +119,6 @@ public:
 	FGameplayTag Focus_Fire;
 	FGameplayTag Focus_Forage;
 	FGameplayTag Focus_Explore;
-
-	// =====================================================================
-	// EVENT TAGS (used for weighting + gating)
-	// =====================================================================
-
-	// Broad event categories (weight pools, eligibility, UI grouping)
-	FGameplayTag Event_Day;
-	FGameplayTag Event_Night;
-
-	FGameplayTag Event_Hunt;
-	FGameplayTag Event_Forage;
-	FGameplayTag Event_Shelter;
-	FGameplayTag Event_Water;
-	FGameplayTag Event_Fire;
-
-	FGameplayTag Event_Social;
-	FGameplayTag Event_Illness;
-	FGameplayTag Event_Injury;
-
-	FGameplayTag Event_FindStone;
-	FGameplayTag Event_Wildlife;
-
-	// Event category: exploration loop
-	FGameplayTag Event_Explore;
-	FGameplayTag Event_ExploreReturn;
-
-	// Travel phase tags (event-driven travel, if used for narrative/queue)
-	FGameplayTag Event_Travel_Outbound;
-	FGameplayTag Event_Travel_Arrival;
-	FGameplayTag Event_Travel_Return;
-	FGameplayTag Event_Travel_ReturnHome;
-
-	// Ambient/idle random events (usually queued, not auto-presented)
-	FGameplayTag Event_Ambient;
 
 	// =====================================================================
 	// STATUS TAGS (optional, rules/pools/UI)
@@ -301,6 +255,36 @@ public:
 	FGameplayTag Attributes_Worldline_SpiritualPractical;
 	FGameplayTag Attributes_Worldline_XenoOpenFear;
 	FGameplayTag Attributes_Worldline_TabooLooseStrict;
+	
+	
+	// =====================================================================
+	// EVENTS (LEGACY COMPATIBILITY)
+	// Keep these tags even if the new SettlerAction/MVVM system replaces RunSubsystem events.
+	// Reason: old subsystems (RunSubsystem/Resolver/WeightPolicy) still reference them.
+	// =====================================================================
+
+	// Generic / ambient
+	FGameplayTag Event_Ambient;
+	FGameplayTag Event_Night;
+
+	// Core categories used by resolver/weight policy (legacy weighting rules)
+	FGameplayTag Event_Hunt;
+	FGameplayTag Event_Forage;
+	FGameplayTag Event_Shelter;
+	FGameplayTag Event_Fire;
+	FGameplayTag Event_Water;
+	FGameplayTag Event_Illness;
+	FGameplayTag Event_Injury;
+	FGameplayTag Event_Social;
+
+	// Travel phased events (legacy time-based travel)
+	FGameplayTag Event_Travel_Outbound;
+	FGameplayTag Event_Travel_Return;
+	FGameplayTag Event_Travel_Arrival;
+	FGameplayTag Event_Travel_ReturnHome;
+
+	// Explore return (legacy expedition)
+	FGameplayTag Event_ExploreReturn;
 
 private:
 	static FStoneGameplayTags GameplayTags;

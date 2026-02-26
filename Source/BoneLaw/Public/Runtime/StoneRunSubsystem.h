@@ -133,54 +133,60 @@ public:
 	UPROPERTY()
 	float WorldTimeSpeedMult = 1.f;
 
-	// === Expeditions (real-time, spaced events) ===
-	// Starts a real-time expedition that reveals events over time.
-	// - DurationSeconds is the trip duration at 1.0 speed (e.g. 300 = 5 minutes).
-	// - Events will pop up at random intervals between MinEventGapSeconds and MaxEventGapSeconds.
-	// - Pause works automatically: if SimulationSpeed == 0, nothing advances and no events trigger.
-	// - At the end, we force a "return" event if available (prefers events tagged Event_ExploreReturn).
-	UFUNCTION(BlueprintCallable, Category="Stone|Expedition")
+	// === Expeditions (LEGACY: time-based realtime action; DEPRECATED) ===
+	// This system triggers events based on wall-clock seconds (countdowns) and random gaps.
+	// Replaced by UStoneSettlerActionComponent (progress-based encounters) for deterministic behavior.
+	UFUNCTION(BlueprintCallable, Category="Stone|Expedition", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based expedition. Use UStoneSettlerActionComponent (progress-based encounters) instead."))
+	UE_DEPRECATED(5.7, "LEGACY time-based expedition. Use UStoneSettlerActionComponent (progress-based encounters) instead.")
 	void StartExploreExpedition(FName ExplorePackId, float DurationSeconds = 300.f, float MinEventGapSeconds = 20.f, float MaxEventGapSeconds = 60.f, bool bTriggerFirstEventImmediately = false);
 
-	UFUNCTION(BlueprintCallable, Category="Stone|Expedition")
+	UFUNCTION(BlueprintCallable, Category="Stone|Expedition", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based expedition. Use UStoneSettlerActionComponent instead."))
+	UE_DEPRECATED(5.7, "LEGACY time-based expedition. Use UStoneSettlerActionComponent instead.")
 	void StopExpedition(bool bForceReturnEvent = false);
 
-	UFUNCTION(BlueprintPure, Category="Stone|Expedition")
+	UFUNCTION(BlueprintPure, Category="Stone|Expedition", meta=(DeprecatedFunction, DeprecationMessage="LEGACY expedition state query. Use ActionComponent state/tags instead."))
+	UE_DEPRECATED(5.7, "LEGACY expedition state query. Use ActionComponent state/tags instead.")
 	bool IsOnExpedition() const;
 
-	UFUNCTION(BlueprintPure, Category="Stone|Expedition")
+	UFUNCTION(BlueprintPure, Category="Stone|Expedition", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetActionProgress01()."))
+	UE_DEPRECATED(5.7, "LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetActionProgress01().")
 	float GetExpeditionProgress01() const;
 	
-	// === Travel Actions (real-time, phased: outbound -> arrival -> return) ===
-	// Travel is action-driven and player-facing:
-	// - Uses SimulationSpeed (0 = paused) to allow UI-driven pause.
-	// - Activates the given Pack only for the duration of the travel action (temporary pack).
-	// - Forced phase events are selected by tags:
-	//   * Event.Travel.Arrival (must happen at destination)
-	//   * Event.Travel.ReturnHome (end of travel; if missing, travel simply completes)
-	// - Optional random travel events can occur on outbound/return, gated by cooldown+chance:
-	//   * Event.Travel.Outbound, Event.Travel.Return
-	UFUNCTION(BlueprintCallable, Category="Stone|Action|Travel")
+	// === Travel Actions (LEGACY: time-based realtime action; DEPRECATED) ===
+	// This system triggers random travel events based on wall-clock seconds (countdowns),
+	// which breaks when time/speed is manipulated. Replaced by UStoneSettlerActionComponent
+	// which pre-rolls encounters at progress01 thresholds (deterministic, speed-agnostic).
+	//
+	// Do not add new code against this API. Keep only for migration / backward compatibility.
+	//
+	// Replacement:
+	//   - Use UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData*)
+	//   - Use progress-based encounter scheduling inside the ActionComponent
+	UFUNCTION(BlueprintCallable, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based travel action. Use UStoneSettlerActionComponent (progress-based encounters) instead."))
+	UE_DEPRECATED(5.7, "LEGACY time-based travel action. Use UStoneSettlerActionComponent (progress-based encounters) instead.")
 	void StartTravelAction(FName TravelPackId, float TotalSecondsAtSpeed1 = 300.f, float RandomMinGapSeconds = 30.f, float RandomMaxGapSeconds = 90.f, float RandomChance01 = 0.25f, bool bTriggerFirstOutboundEventImmediately = false);
 
-	UFUNCTION(BlueprintCallable, Category="Stone|Action|Travel")
+	UFUNCTION(BlueprintCallable, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based travel action. Use UStoneSettlerActionComponent (progress-based encounters) instead."))
+	UE_DEPRECATED(5.7, "LEGACY time-based travel action. Use UStoneSettlerActionComponent (progress-based encounters) instead.")
 	void StopTravelAction(bool bForceReturnHomeEvent = false);
 
-	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel")
+	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY travel state query. Use ActionComponent state/tags instead."))
+	UE_DEPRECATED(5.7, "LEGACY travel state query. Use ActionComponent state/tags instead.")
 	bool IsTravelActive() const { return bTravelActive; }
 
-	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel")
+	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY travel state query. Use ActionComponent state/tags instead."))
+	UE_DEPRECATED(5.7, "LEGACY travel state query. Use ActionComponent state/tags instead.")
 	EStoneTravelPhase GetTravelPhase() const { return TravelPhase; }
 
-	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel")
+	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetActionProgress01()."))
+	UE_DEPRECATED(5.7, "LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetActionProgress01().")
 	float GetTravelProgress01() const;
 
-	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel")
+	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetPhaseProgress01()."))
+	UE_DEPRECATED(5.7, "LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetPhaseProgress01().")
 	float GetTravelLegProgress01() const;
 
 	// === Ambient / Idle random events (usually queued, not auto-presented) ===
-	// Call this from Ultra Dynamic Skies "OnHourChanged" (or similar) to roll for a rare ambient event.
-	// If bAutoPresent == false, the event will be queued and must be opened by the UI explicitly.
 	UFUNCTION(BlueprintCallable, Category="Stone|Ambient")
 	bool TryRollAmbientEvent(float Chance01 = 0.15f, bool bAutoPresent = false);
 
@@ -232,7 +238,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Stone|Run")
 	void GetResolvedChoices(TArray<FStoneChoiceResolved>& OutResolved) const;
 
-
 	// === Pack Control (Action-driven) ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Packs")
 	void ActivatePackTemporary(FName PackId);
@@ -240,8 +245,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Stone|Packs")
 	void DeactivateTemporaryPacks();
 
-	// Deactivate only the provided temporary packs.
-	// Safe no-op for packs that were not activated temporarily (e.g. packs that were already active).
 	UFUNCTION(BlueprintCallable, Category="Stone|Packs")
 	void DeactivateTemporaryPacksByIds(const TArray<FName>& PackIds);
 
@@ -251,17 +254,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Stone|Trace")
 	UStoneRunTraceBuffer* GetTraceBuffer() const { return Trace; }
 	
-	// Queue event requests by tag (Action uses bAutoPresent=true; ambient uses false)
 	UFUNCTION(BlueprintCallable, Category="Stone|Event")
 	void QueueEventByTag(const FGameplayTag& EventTag, bool bAutoPresent);
 
-	// State queries (for action ticking)
 	bool HasOpenEvent() const;
 
 	UFUNCTION(BlueprintPure, Category="Stone|Action")
 	bool IsAnyRealtimeActionActive() const { return bExpeditionActive || bTravelActive; }
 
-	// Tag state changes (if you already do this elsewhere, reuse)
 	void AddStateTags(const FGameplayTagContainer& TagsToAdd);
 	void RemoveStateTags(const FGameplayTagContainer& TagsToRemove);
 	FGameplayTagContainer GetCurrentStateTags() const;
@@ -271,7 +271,6 @@ public:
 
 	void SetFocusTag(FGameplayTag Focus) { SetFocus(Focus); }
 	
-	// Utility
 	UAbilitySystemComponent* GetASC() const;
 	
 	void ForceNextEvent(FName EventId);

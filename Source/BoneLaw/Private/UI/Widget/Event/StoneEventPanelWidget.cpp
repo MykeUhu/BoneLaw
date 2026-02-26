@@ -121,6 +121,27 @@ void UStoneEventPanelWidget::RefreshFromEvent(const UStoneEventData* Event)
 				*AuthEvent->GetName());
 			return;
 		}
+
+		// No authoritative event -> CLEAR UI and exit (prevents NULL deref below)
+		CurrentEvent = nullptr;
+
+		if (VB_Choices)
+		{
+			VB_Choices->ClearChildren();
+		}
+		if (TB_Title)
+		{
+			TB_Title->SetText(FText::GetEmpty());
+		}
+		if (TB_Body)
+		{
+			TB_Body->SetText(FText::GetEmpty());
+		}
+
+		// Optional: if you have a BP hide hook, call it; otherwise just return
+		BP_OnEventHidden();
+
+		return;
 	}
 
 	// Clear stale local state before applying new event.

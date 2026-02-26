@@ -931,12 +931,13 @@ void UStoneRunSubsystem::ExecuteChoiceOutcomes(const FStoneChoiceData& Choice, b
 	Ctx.Scheduler = Scheduler;
 	Ctx.Time = &Time;
 	Ctx.FocusTag = &FocusTag;
+	Ctx.SourceObject = GetActiveAgent() ? GetActiveAgent() : GetPlayerState();
 
 	const TArray<FStoneOutcome>& Outcomes = bSoftFailPath ? Choice.FailOutcomes : Choice.Outcomes;
 
 	if (OutcomeExecutor)
 	{
-		OutcomeExecutor->ApplyOutcomes(Outcomes, this, Ctx);
+		OutcomeExecutor->ApplyOutcomes(Outcomes, Ctx);
 	}
 
 	// Optional extra schedules directly on the choice (separate from outcomes)

@@ -7,8 +7,8 @@
 #include "StoneSettlerActionComponent.generated.h"
 
 class UStoneActionDefinitionData;
-class UStoneRunSubsystem;
 class UAbilitySystemComponent;
+class UStoneEventData;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FStoneSettlerActionStateChanged);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneSettlerActionProgressChanged, float, Progress01);
@@ -17,9 +17,21 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FStoneSettlerActionFinishedNative, const US
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FStoneSettlerActionFinished, const UStoneActionDefinitionData*, Action, bool, bSuccess);
 
 /**
+ * Fired when an encounter (event) is opened for this settler.
+ * MVVM screens bind here to drive popups.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneSettlerEncounterOpened, const UStoneEventData*, Event);
+
+/**
+ * Fired when the currently open encounter for this settler is closed.
+ * bAborted is true only when the encounter ended due to Action.Abort outcome tag.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneSettlerEncounterClosed, bool, bAborted);
+
+/**
  * Per-Settler Action Component
- * Replaces the global ActionSubsystem approach with component-based actions.
- * Each settler can now have their own active action independently.
+ * Each settler can have their own active action independently.
+ * SSOT for BT state is GAS tags applied on the Settler ASC (not RunSubsystem).
  */
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class BONELAW_API UStoneSettlerActionComponent : public UActorComponent
@@ -32,28 +44,21 @@ public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	/**
-	 * Start a new action for this settler
-	 * @param ActionDef - Action definition data asset
-	 * @return true if action started successfully
-	 */
+	/** Start a new action for this settler. */
 	UFUNCTION(BlueprintCallable, Category = "Stone|Action")
 	bool StartAction(UStoneActionDefinitionData* ActionDef);
 
-	/**
-	 * Stop the currently running action
-	 * @param bForceReturnHomeEvent - whether to trigger return home event
-	 */
+	/** Stops the current action and reports success/failure. (Preferred API) */
+	UFUNCTION(BlueprintCallable, Category = "Stone|Action")
+	void StopAction(bool bSuccess = true);
+
+	/** Stop the currently running action (legacy). */
 	UFUNCTION(BlueprintCallable, Category = "Stone|Action")
 	void StopCurrentAction(bool bForceReturnHomeEvent);
 
 	/** Is this settler currently executing an action? */
 	UFUNCTION(BlueprintPure, Category = "Stone|Action")
 	bool IsActionRunning() const { return bActionRunning; }
-
-	/** Stops the current action and reports success/failure. (Preferred API) */
-	UFUNCTION(BlueprintCallable, Category = "Stone|Action")
-	void StopAction(bool bSuccess = true);
 
 	/** Current phase of the action */
 	UFUNCTION(BlueprintPure, Category = "Stone|Action")
@@ -110,6 +115,13 @@ public:
 		TotalElapsedBaseSeconds = TotalElapsed;
 	}
 
+	/**
+	 * Resolve / close the current encounter. Call from MVVM/UI once the player made a choice.
+	 * bAborted should be false in normal UI resolution.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Stone|Action|Encounter")
+	void ResolveCurrentEncounter(bool bAborted);
+
 	UPROPERTY(BlueprintAssignable, Category = "Stone|Action")
 	FStoneSettlerActionStateChanged OnActionStateChanged;
 
@@ -123,19 +135,36 @@ public:
 	/** Native version used by BT tasks (avoids dynamic bind overhead). */
 	FStoneSettlerActionFinishedNative OnActionFinishedNative;
 
+	/** Encounter opened for this settler. */
+	UPROPERTY(BlueprintAssignable, Category = "Stone|Action|Encounter")
+	FStoneSettlerEncounterOpened OnEncounterOpened;
+
+	/** Encounter closed for this settler. */
+	UPROPERTY(BlueprintAssignable, Category = "Stone|Action|Encounter")
+	FStoneSettlerEncounterClosed OnEncounterClosed;
+
 private:
 	void StopInternal(bool bSuccess, bool bForceReturnHomeEvent);
+
 	void TickAction();
 	void AdvancePhaseTimeline(float AdvanceBaseSeconds);
-	void EnterPhase(EStoneActionPhase NewPhase);
 	void HandlePhaseAdvance();
+	void EnterPhase(EStoneActionPhase NewPhase);
 
-	UStoneRunSubsystem* GetRun() const;
 	float ResolveActionSpeedMult() const;
 	FGameplayTag GetLegRandomEventTag(EStoneActionPhase InPhase) const;
 
-	void ApplyRunSideEffects();
-	void RemoveRunSideEffects();
+	/**
+	 * Checks if the settler ASC carries an Action.Abort or Action.ReturnImmediately tag.
+	 * If found, consumes the tag (removes it) and returns the appropriate result.
+	 */
+	EStoneActionAbortResult CheckAndConsumeAbortTags();
+
+	/** Open an encounter (event) by tag and broadcast OnEncounterOpened. */
+	void OpenEncounterByTag(FGameplayTag EventTag);
+
+	/** Notify listeners that the encounter was closed. */
+	void NotifyEncounterClosed(bool bAborted);
 
 private:
 	FTimerHandle ActionTickHandle;
@@ -145,7 +174,21 @@ private:
 
 	bool bActionRunning = false;
 	bool bReturnHomeQueued = false;
+	
+	// Optional: Action-scoped tags applied to the Settler ASC for the lifetime of the action.
+	// Use only if you still rely on GrantedStateTags in data assets.
+	FGameplayTagContainer AppliedStateTags;
 
+	/** True while an encounter is currently open (event unresolved). */
+	bool bEncounterOpen = false;
+
+	/** Tag of the currently open encounter (valid only while bEncounterOpen is true). */
+	FGameplayTag CurrentEncounterTag;
+
+	/** Set when an encounter/action is aborted via Action.Abort outcome tag. */
+	bool bLastEncounterAborted = false;
+
+	
 	EStoneActionPhase Phase = EStoneActionPhase::None;
 
 	float BaseDurationSeconds = 0.f;
@@ -155,17 +198,8 @@ private:
 	float PhaseElapsedBaseSeconds = 0.f;
 	float TotalElapsedBaseSeconds = 0.f;
 
-	TArray<float> OutboundRandomTimes;
-	TArray<float> ReturnRandomTimes;
-	int32 OutboundIndex = 0;
-	int32 ReturnIndex = 0;
-
-	// What we applied to Run (for clean revert)
-	FGameplayTagContainer AppliedStateTags;
-	TArray<FName> ActivatedPackIds;
+	TArray<FStonePlannedEncounter> OutboundEncounterSlots;
+	TArray<FStonePlannedEncounter> ReturnEncounterSlots;
 
 	FRandomStream RNG;
-
-	/** If we set RunSubsystem's active agent during StartAction(), we clear it on StopAction(). */
-	bool bOwnsRunActiveAgent = false;
 };

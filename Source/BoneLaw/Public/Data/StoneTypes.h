@@ -3,7 +3,6 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "Abilities/GameplayAbility.h"
-#include "Abilities/GameplayAbility.h"
 #include "StoneTypes.generated.h"
 
 class UGameplayEffect;
@@ -296,7 +295,9 @@ struct FSavedBuildable
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Durability = 1.f;
 
-	FSavedBuildable() { WorldObjectId = FGuid::NewGuid(); }
+	// NOTE: IDs are assigned by the system that creates the record (builder/registry),
+	// not during default construction (must stay deterministic for UE member init tests).
+	FSavedBuildable() = default;
 };
 
 /**
@@ -344,7 +345,7 @@ struct FSavedAssignment
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	double ElapsedSeconds = 0.0;
 
-	FSavedAssignment() { AssignmentId = FGuid::NewGuid(); }
+	FSavedAssignment() = default;
 };
 
 /**
@@ -388,7 +389,7 @@ struct FSavedSettler
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bHasAssignment = false;
 
-	FSavedSettler() { SettlerId = FGuid::NewGuid(); }
+	FSavedSettler() = default;
 };
 
 /**

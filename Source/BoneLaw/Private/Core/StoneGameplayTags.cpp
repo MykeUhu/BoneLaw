@@ -158,67 +158,15 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 		FString("Action: Explore an area")
 	);
 
-	// Travel Action Phases
-	GameplayTags.Action_Travel_Outbound = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Travel.Outbound"),
-		FString("Action phase: Travel outbound leg (replaces Event.Travel.Outbound for actions)")
+	// Abort / flow-control tags (set by Outcomes, polled by ActionComponent each tick)
+	GameplayTags.Action_Abort = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Abort"),
+		FString("Action: Abort the current action immediately (counted as failure). Set by Outcome, cleared by ActionComponent.")
 	);
 
-	GameplayTags.Action_Travel_Arrival = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Travel.Arrival"),
-		FString("Action phase: Travel arrival at destination")
-	);
-
-	GameplayTags.Action_Travel_Return = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Travel.Return"),
-		FString("Action phase: Travel return leg")
-	);
-
-	GameplayTags.Action_Travel_ReturnHome = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Travel.ReturnHome"),
-		FString("Action phase: Travel return home (end of travel)")
-	);
-
-	// Gather Action Phases
-	GameplayTags.Action_Gather_Outbound = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Gather.Outbound"),
-		FString("Action phase: Gather outbound leg")
-	);
-
-	GameplayTags.Action_Gather_Arrival = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Gather.Arrival"),
-		FString("Action phase: Gather arrival at destination")
-	);
-
-	GameplayTags.Action_Gather_Return = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Gather.Return"),
-		FString("Action phase: Gather return leg")
-	);
-
-	GameplayTags.Action_Gather_ReturnHome = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Gather.ReturnHome"),
-		FString("Action phase: Gather return home")
-	);
-
-	// Explore Action Phases
-	GameplayTags.Action_Explore_Outbound = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Explore.Outbound"),
-		FString("Action phase: Explore outbound leg")
-	);
-
-	GameplayTags.Action_Explore_Arrival = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Explore.Arrival"),
-		FString("Action phase: Explore arrival at destination")
-	);
-
-	GameplayTags.Action_Explore_Return = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Explore.Return"),
-		FString("Action phase: Explore return leg")
-	);
-
-	GameplayTags.Action_Explore_ReturnHome = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Action.Explore.ReturnHome"),
-		FString("Action phase: Explore return home")
+	GameplayTags.Action_ReturnImmediately = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.ReturnImmediately"),
+		FString("Action: Skip remaining outbound/arrival work and jump to the Return phase. Set by Outcome, cleared by ActionComponent.")
 	);
 	
 	// =========================
@@ -307,108 +255,7 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 		FName("Focus.Explore"),
 		FString("Focus: exploration / expedition")
 	);
-
-	// =========================
-	// Event Tags
-	// =========================
-	GameplayTags.Event_Hunt = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Hunt"),
-		FString("Event category: Hunt")
-	);
-
-	GameplayTags.Event_Forage = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Forage"),
-		FString("Event category: Forage")
-	);
-
-	GameplayTags.Event_Shelter = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Shelter"),
-		FString("Event category: Shelter")
-	);
-
-	GameplayTags.Event_Water = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Water"),
-		FString("Event category: Water")
-	);
-
-	GameplayTags.Event_Fire = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Fire"),
-		FString("Event category: Fire / cooking")
-	);
-
-	GameplayTags.Event_Social = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Social"),
-		FString("Event category: Social")
-	);
-
-	GameplayTags.Event_Illness = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Illness"),
-		FString("Event category: Illness")
-	);
-
-	GameplayTags.Event_Injury = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Injury"),
-		FString("Event category: Injury")
-	);
-
-	GameplayTags.Event_Night = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Night"),
-		FString("Event timing: Night")
-	);
-
-	GameplayTags.Event_Day = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Day"),
-		FString("Event timing: Day")
-	);
 	
-	GameplayTags.Event_FindStone = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.FindStone"),
-		FString("Event: Find a stone")
-		);
-	
-	GameplayTags.Event_Wildlife = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Wildlife"),
-		FString("Event: Wildlife encounter")
-		);
-		
-	// =========================
-	// Event category
-	// =========================
-	GameplayTags.Event_Explore = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Explore"),
-		FString("Event category: Exploration encounter (only during expedition)")
-	);
-
-	GameplayTags.Event_ExploreReturn = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.ExploreReturn"),
-		FString("Event category: Expedition return event")
-	);
-
-	GameplayTags.Event_Travel_Outbound = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Travel.Outbound"),
-		FString("Event category: Travel event that can occur on the outbound leg")
-	);
-
-	GameplayTags.Event_Travel_Arrival = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Travel.Arrival"),
-		FString("Event category: Travel arrival event (must happen at destination)")
-	);
-
-	GameplayTags.Event_Travel_Return = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Travel.Return"),
-		FString("Event category: Travel event that can occur on the return leg")
-	);
-
-	GameplayTags.Event_Travel_ReturnHome = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Travel.ReturnHome"),
-		FString("Event category: Travel return-home event (end of travel action)")
-	);
-
-	GameplayTags.Event_Ambient = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Event.Ambient"),
-		FString("Event category: Ambient/idle random events (usually queued, not auto-presented)")
-	);
-
 	// =========================
 	// Status Tags (optional)
 	// =========================
@@ -788,4 +635,27 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 	    FName("Attributes.Worldline.TabooLooseStrict"),
 	    FString("Worldline axis: Loose(0) .. Strict(100), 50=neutral")
 	    );
+	
+	// =====================================================================
+	// EVENTS (LEGACY COMPATIBILITY)
+	// =====================================================================
+	GameplayTags.Event_Ambient = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Ambient"), TEXT("Legacy ambient event tag")));
+	GameplayTags.Event_Night = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Night"), TEXT("Legacy night-only events")));
+
+	GameplayTags.Event_Hunt = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Hunt"), TEXT("Legacy hunt events")));
+	GameplayTags.Event_Forage = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Forage"), TEXT("Legacy forage events")));
+	GameplayTags.Event_Shelter = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Shelter"), TEXT("Legacy shelter events")));
+	GameplayTags.Event_Fire = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Fire"), TEXT("Legacy fire events")));
+	GameplayTags.Event_Water = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Water"), TEXT("Legacy water events")));
+	GameplayTags.Event_Illness = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Illness"), TEXT("Legacy illness events")));
+	GameplayTags.Event_Injury = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Injury"), TEXT("Legacy injury events")));
+	GameplayTags.Event_Social = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Social"), TEXT("Legacy social events")));
+
+	GameplayTags.Event_Travel_Outbound = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Travel.Outbound"), TEXT("Legacy travel outbound events")));
+	GameplayTags.Event_Travel_Return = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Travel.Return"), TEXT("Legacy travel return events")));
+	GameplayTags.Event_Travel_Arrival = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Travel.Arrival"), TEXT("Legacy travel arrival event")));
+	GameplayTags.Event_Travel_ReturnHome = UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.Travel.ReturnHome"), TEXT("Legacy travel return-home event")));
+
+	GameplayTags.Event_ExploreReturn= UGameplayTagsManager::Get().AddNativeGameplayTag((FName("Event.ExploreReturn"), TEXT("Legacy expedition return events")));
+
 }
