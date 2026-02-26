@@ -11,6 +11,7 @@
 #include "AbilitySystem/Data/AttributeInfo.h"
 #include "Core/StoneGameplayTags.h"
 #include "Runtime/StoneRunSubsystem.h"
+#include "Runtime/StoneRosterSubsystem.h"
 
 // -------------------------
 // Details lifecycle
@@ -18,11 +19,41 @@
 
 void UMVVM_SettlerSlotDetails::BindToSettler(const FGuid& SettlerId, AStoneSettlerChar* SettlerActor)
 {
-	// Always clean previous binding first (important if user clicks quickly between slots)
-	Unbind();
-
 	BoundSettlerId = SettlerId;
 	BoundSettler = SettlerActor;
+
+	// -------------------------------------------------------------------------
+	// Identity: always pull the display name fresh from the RosterSubsystem.
+	// This fixes the "name blank on second open" bug:
+	//   - The old Blueprint approach set the TextBlock directly from InSettlerName
+	//     which was only valid on first open; on subsequent opens the VM instance
+	//     was reused but Init was called before BindToSettler, so the old value
+	//     from the previous binding was shown (or empty if the slot changed).
+	//   - Now the name is a proper FieldNotify property → Blueprint binds via MVVM,
+	//     and BindToSettler always writes the current value from the SSOT (RosterSubsystem).
+	// -------------------------------------------------------------------------
+	SetSettlerDisplayGuid(SettlerId.IsValid() ? SettlerId.ToString() : FString());
+
+	if (BoundSettler)
+	{
+		if (UWorld* World = BoundSettler->GetWorld())
+		{
+			if (UStoneRosterSubsystem* Roster = World->GetSubsystem<UStoneRosterSubsystem>())
+			{
+				const FSavedSettler Info = Roster->GetSettlerInfo(SettlerId);
+				SetSettlerName(Info.DisplayName);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[SettlerSlotDetails] BindToSettler: RosterSubsystem not found. Name will be empty. SettlerId=%s"), *SettlerId.ToString());
+				SetSettlerName(FString());
+			}
+		}
+	}
+	else
+	{
+		SetSettlerName(FString());
+	}
 
 	if (!BoundSettler)
 	{
@@ -103,78 +134,8 @@ void UMVVM_SettlerSlotDetails::BindToSettler(const FGuid& SettlerId, AStoneSettl
 	SetInjuryResistance(0.f);
 }
 
-void UMVVM_SettlerSlotDetails::Unbind()
-{
-	UnbindAttributeDelegates();
-
-	// Unbind ASC-registered delegate
-	if (BoundSettler && AscRegisteredHandle.IsValid())
-	{
-		BoundSettler->OnAscRegistered.Remove(AscRegisteredHandle);
-		AscRegisteredHandle.Reset();
-	}
-	if (BoundActionComp)
-	{
-		BoundActionComp->OnActionStateChanged.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionStateChanged);
-		BoundActionComp->OnActionProgressChanged.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionProgressChanged);
-		BoundActionComp = nullptr;
-	}
-
-	if (BoundRun)
-	{
-		BoundRun->OnEventChanged.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleRunEventChanged);
-		BoundRun = nullptr;
-	}
-
-	SetIsActionRunning(false);
-	SetActionProgress(0.f);
-	SetActionTitleText(FText::GetEmpty());
-	SetActionPhaseText(FText::GetEmpty());
-	SetHasOpenEvent(false);
-	
-	BoundASC = nullptr;
-	BoundSettler = nullptr;
-
-	// Reset MVVM fields (so UI doesn't keep stale values)
-	SetHealth(0.f);
-	SetMaxHealth(0.f);
-	SetHealthPct(0.f);
-
-	SetFood(0.f);
-	SetMaxFood(0.f);
-	SetFoodPct(0.f);
-
-	SetWater(0.f);
-	SetMaxWater(0.f);
-	SetWaterPct(0.f);
-
-	SetWarmth(0.f);
-	SetWarmthPct(0.f);
-
-	SetMorale(0.f);
-	SetMaxMorale(0.f);
-	SetMoralePct(0.f);
-	
-	// Primary Attributes
-	SetStrength(0.f);
-	SetIntelligence(0.f);
-	SetEndurance(0.f);
-	SetWillpower(0.f);
-	SetSocial(0.f);
-	
-	// Secondary Attributes
-	SetCarryCapacity(0.f);
-	SetTravelSpeed(0.f);
-	SetCraftSpeed(0.f);
-	SetGatherEfficiency(0.f);
-	SetInjuryResistance(0.f);
-
-	BoundSettlerId.Invalidate();
-}
-
 void UMVVM_SettlerSlotDetails::BeginDestroy()
 {
-	Unbind();
 	Super::BeginDestroy();
 }
 
@@ -595,3 +556,7 @@ void UMVVM_SettlerSlotDetails::SetActionProgress(float InProgress01)			{ UE_MVVM
 void UMVVM_SettlerSlotDetails::SetActionTitleText(const FText& InTitle)			{ UE_MVVM_SET_PROPERTY_VALUE(ActionTitle, InTitle); }
 void UMVVM_SettlerSlotDetails::SetActionPhaseText(const FText& InPhase)			{ UE_MVVM_SET_PROPERTY_VALUE(ActionPhase, InPhase); }
 void UMVVM_SettlerSlotDetails::SetHasOpenEvent(bool bInHasOpenEvent)			{ UE_MVVM_SET_PROPERTY_VALUE(bHasOpenEvent, bInHasOpenEvent); }
+
+// Identity
+void UMVVM_SettlerSlotDetails::SetSettlerName(const FString& InName)			{ UE_MVVM_SET_PROPERTY_VALUE(SettlerName, InName); }
+void UMVVM_SettlerSlotDetails::SetSettlerDisplayGuid(const FString& InGuid)		{ UE_MVVM_SET_PROPERTY_VALUE(SettlerDisplayGuid, InGuid); }

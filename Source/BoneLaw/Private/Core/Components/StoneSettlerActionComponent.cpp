@@ -583,6 +583,19 @@ void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag EventTag)
 	const int32 PickIndex = RNG.RandRange(0, Matching.Num() - 1);
 	UStoneEventData* Picked = Matching[PickIndex];
 
+	// Guard: if nobody is listening, auto-resolve immediately so the action timeline is
+	// not blocked forever. This can happen when the SettlerSlotDetails widget is closed
+	// or has not yet bound to OnEncounterOpened for this settler.
+	if (!OnEncounterOpened.IsBound())
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[SettlerAction] Encounter '%s' would open for Tag='%s' but OnEncounterOpened has no listeners. "
+			     "Auto-resolving to prevent action stall. Owner=%s"),
+			*GetNameSafe(Picked), *EventTag.ToString(), *GetNameSafe(GetOwner()));
+		// Do NOT set bEncounterOpen - there is nothing to resolve, just skip silently.
+		return;
+	}
+
 	CurrentEncounterTag = EventTag;
 	bLastEncounterAborted = false;
 	bEncounterOpen = true;
@@ -591,13 +604,6 @@ void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag EventTag)
 		*EventTag.ToString(), *GetNameSafe(Picked), *GetNameSafe(GetOwner()));
 
 	OnEncounterOpened.Broadcast(Picked);
-
-	// Wenn niemand gebunden ist, blockiere die Action nicht.
-	if (!OnEncounterOpened.IsBound())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] Encounter opened but nobody is bound. Auto-resolving. Owner=%s"), *GetNameSafe(GetOwner()));
-		ResolveCurrentEncounter(false);
-	}
 }
 
 void UStoneSettlerActionComponent::NotifyEncounterClosed(bool bAborted)

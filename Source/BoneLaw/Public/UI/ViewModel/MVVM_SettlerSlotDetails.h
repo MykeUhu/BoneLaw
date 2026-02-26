@@ -14,6 +14,7 @@ class UAttributeInfo;
 class UStoneSettlerActionComponent;
 class UStoneRunSubsystem;
 class UStoneEventData;
+class UStoneRosterSubsystem;
 
 struct FOnAttributeChangeData;
 
@@ -26,11 +27,17 @@ public:
 	// -------------------------
 	// Details lifecycle
 	// -------------------------
+
+	/**
+	 * Bind this VM to a specific settler. Called from Blueprint's SetupVM / Init graph.
+	 * Reads the name from the RosterSubsystem (SSOT) so the name is always correct,
+	 * even on the second or Nth opening of the same VM instance.
+	 *
+	 * @param SettlerId   GUID of the settler to bind to.
+	 * @param SettlerActor The live pawn actor (may be nullptr if not yet spawned).
+	 */
 	UFUNCTION(BlueprintCallable)
 	void BindToSettler(const FGuid& SettlerId, AStoneSettlerChar* SettlerActor);
-
-	UFUNCTION(BlueprintCallable)
-	void Unbind();
 	
 	// -------------------------
 	// Event and Action Subsystem
@@ -140,6 +147,10 @@ private:
 	void SetActionTitleText(const FText& InTitle);
 	void SetActionPhaseText(const FText& InPhase);
 	void SetHasOpenEvent(bool bInHasOpenEvent);
+
+	// Identity
+	void SetSettlerName(const FString& InName);
+	void SetSettlerDisplayGuid(const FString& InGuid);
 	
 
 	// -------------------------
@@ -189,6 +200,10 @@ private:
 	FText GetActionTitleText() const { return ActionTitle; }
 	FText GetActionPhaseText() const { return ActionPhase; }
 	bool GetHasOpenEvent() const { return bHasOpenEvent; }
+
+	// Identity
+	FString GetSettlerName() const { return SettlerName; }
+	FString GetSettlerDisplayGuid() const { return SettlerDisplayGuid; }
 
 private:
 	// -------------------------
@@ -346,4 +361,17 @@ private:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter=GetHasOpenEvent, Setter=SetHasOpenEvent, FieldNotify, meta=(AllowPrivateAccess="true"))
 	bool bHasOpenEvent = false;
+
+	// -------------------------
+	// Identity Fields
+	// -------------------------
+	// Settler display name read from the RosterSubsystem SSOT in BindToSettler().
+	// Bound via MVVM in Blueprint (replaces the old direct TextBlock assignment that was
+	// only valid on first open and went blank on subsequent openings of the same VM).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
+	FString SettlerName;
+
+	// Stringified GUID shown in debug / header sub-text (optional use).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, FieldNotify, meta=(AllowPrivateAccess="true"))
+	FString SettlerDisplayGuid;
 };

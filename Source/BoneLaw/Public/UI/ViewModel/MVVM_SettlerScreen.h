@@ -8,7 +8,6 @@
 #include "MVVM_SettlerScreen.generated.h"
 
 class UMVVM_SettlerSlotDetails;
-
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSettlerListRebuilt);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSettlerSelected, FGuid, SettlerId);
 
