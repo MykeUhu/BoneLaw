@@ -7,6 +7,7 @@
 #include "Core/Components/StoneSettlerActionComponent.h"
 #include "Data/StoneEventData.h"
 #include "Game/Events/StoneEventResolver.h"
+#include "Game/StoneOutcomeExecutor.h"
 #include "Runtime/StoneRosterSubsystem.h"
 
 // GAS
@@ -87,6 +88,47 @@ void UMVVM_SettlerEncounterVM::SelectChoice(int32 ChoiceIndex)
 
 	// Then close encounter (your action component only needs aborted flag)
 	BoundActionComp->ResolveCurrentEncounter(false);
+}
+
+void UMVVM_SettlerEncounterVM::ApplyChoiceOutcomes(int32 ChoiceIndex)
+{
+	if (!BoundEvent || !IsValid(BoundSettler.Get()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[EncounterVM] ApplyChoiceOutcomes(%d) - not bound (Event=%s Settler=%s)."),
+			ChoiceIndex, *GetNameSafe(BoundEvent.Get()), *GetNameSafe(BoundSettler.Get()));
+		return;
+	}
+
+	const TArray<FStoneOutcome> Outcomes = GetChoiceOutcomesAtIndex(ChoiceIndex);
+	if (Outcomes.IsEmpty())
+	{
+		UE_LOG(LogTemp, Log, TEXT("[EncounterVM] ApplyChoiceOutcomes(%d) - no outcomes defined, skipping."), ChoiceIndex);
+		return;
+	}
+
+	FStoneOutcomeContext Ctx;
+
+	if (const IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(BoundSettler.Get()))
+	{
+		Ctx.ASC = ASI->GetAbilitySystemComponent();
+	}
+
+	if (!IsValid(Ctx.ASC))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[EncounterVM] ApplyChoiceOutcomes(%d) - Settler ASC invalid for '%s'."),
+			ChoiceIndex, *GetNameSafe(BoundSettler.Get()));
+		return;
+	}
+
+	Ctx.SourceObject = BoundSettler.Get();
+
+	UStoneOutcomeExecutor* Executor = NewObject<UStoneOutcomeExecutor>(this);
+	if (Executor)
+	{
+		Executor->ApplyOutcomes(Outcomes, Ctx);
+		UE_LOG(LogTemp, Log, TEXT("[EncounterVM] ApplyChoiceOutcomes(%d) applied %d outcomes to '%s'."),
+			ChoiceIndex, Outcomes.Num(), *GetNameSafe(BoundSettler.Get()));
+	}
 }
 
 void UMVVM_SettlerEncounterVM::HandleEncounterClosed(bool bAborted)

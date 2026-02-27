@@ -27,6 +27,14 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SelectChoice(int32 ChoiceIndex);
 
+	/**
+	 * Applies all outcomes for the given UI choice index directly against the bound settler's ASC.
+	 * Call this from Blueprint BEFORE or AFTER SelectChoice (order: ApplyChoiceOutcomes -> SelectChoice).
+	 * Builds the FStoneOutcomeContext internally - no C++ structs needed in Blueprint.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Encounter")
+	void ApplyChoiceOutcomes(int32 ChoiceIndex);
+
 	UPROPERTY(BlueprintAssignable)
 	FStoneEncounterChoiceSelected OnChoiceSelected;
 
