@@ -1,7 +1,8 @@
-﻿// Copyright by MykeUhu
+// Copyright by MykeUhu
 
 #include "Core/Character/StoneSettlerChar.h"
 
+#include "GameplayTagsManager.h"
 #include "AbilitySystem/StoneAbilitySystemComponent.h"
 #include "AbilitySystem/StoneAttributeSet.h"
 #include "AbilitySystem/StoneAbilitySystemLibrary.h"
@@ -214,9 +215,10 @@ void AStoneSettlerChar::ApplySavedState(const FSavedSettler& SettlerData)
 {
 	if (!HasAuthority())
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[Settler] ApplySavedState skipped (no authority). Settler=%s"), *GetName());
 		return;
 	}
-
+	
 	UStoneAbilitySystemComponent* StoneASC = Cast<UStoneAbilitySystemComponent>(AbilitySystemComponent);
 	if (!StoneASC)
 	{
@@ -253,15 +255,52 @@ void AStoneSettlerChar::ApplySavedState(const FSavedSettler& SettlerData)
 		return;
 	}
 
-	// Tags
+	// -------------------------
+	// Tags (PERSIST ONLY)
+	// -------------------------
+	static const FGameplayTag StateRoot  = UGameplayTagsManager::Get().RequestGameplayTag(FName("State"),  /*ErrorIfNotFound*/ false);
+	static const FGameplayTag StatusRoot = UGameplayTagsManager::Get().RequestGameplayTag(FName("Status"), /*ErrorIfNotFound*/ false);
+
+	auto FilterPersistedStateTags = [&](const FGameplayTagContainer& In) -> FGameplayTagContainer
+	{
+		FGameplayTagContainer Out;
+		for (const FGameplayTag& Tag : In)
+		{
+			if ((StateRoot.IsValid()  && Tag.MatchesTag(StateRoot)) ||
+				(StatusRoot.IsValid() && Tag.MatchesTag(StatusRoot)))
+			{
+				Out.AddTag(Tag);
+			}
+		}
+		return Out;
+	};
+
 	if (SettlerData.SettlerTags.Num() > 0)
 	{
-		StoneASC->AddLooseGameplayTags(SettlerData.SettlerTags);
-		UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] ApplySavedState: applied %d tags. Pawn=%s"),
-			SettlerData.SettlerTags.Num(), *GetName());
+		// Remove old persisted tags (only loose removal; GE-granted tags are unaffected).
+		FGameplayTagContainer OwnedNow;
+		StoneASC->GetOwnedGameplayTags(OwnedNow);
+
+		const FGameplayTagContainer PersistedNow = FilterPersistedStateTags(OwnedNow);
+		if (PersistedNow.Num() > 0)
+		{
+			StoneASC->RemoveLooseGameplayTags(PersistedNow);
+		}
+
+		// Apply persisted saved tags
+		const FGameplayTagContainer PersistedSaved = FilterPersistedStateTags(SettlerData.SettlerTags);
+		if (PersistedSaved.Num() > 0)
+		{
+			StoneASC->AddLooseGameplayTags(PersistedSaved);
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] ApplySavedState: tags cleared=%d applied=%d (State/Status only). Pawn=%s"),
+			PersistedNow.Num(), PersistedSaved.Num(), *GetName());
 	}
 
+	// -------------------------
 	// Attributes
+	// -------------------------
 	const UStoneAttributeSet* AttrSet = Cast<UStoneAttributeSet>(AttributeSet);
 	if (AttrSet && SettlerData.Attributes.Num() > 0)
 	{
@@ -286,7 +325,9 @@ void AStoneSettlerChar::ApplySavedState(const FSavedSettler& SettlerData)
 			AppliedCount, SettlerData.Attributes.Num(), *GetName());
 	}
 
+	// -------------------------
 	// Abilities
+	// -------------------------
 	if (SettlerData.GrantedAbilities.Num() > 0)
 	{
 		int32 GrantedCount = 0;
@@ -306,6 +347,63 @@ void AStoneSettlerChar::ApplySavedState(const FSavedSettler& SettlerData)
 
 	bDidApplySavedState = true;
 	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] ApplySavedState DONE Pawn=%s"), *GetName());
+}
+
+TArray<FSavedAttribute> AStoneSettlerChar::GatherCurrentAttributes() const
+{
+	TArray<FSavedAttribute> Result;
+
+	if (!HasAuthority())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneSettlerChar] GatherCurrentAttributes called without authority. Pawn=%s"), *GetName());
+		return Result;
+	}
+
+	const UStoneAbilitySystemComponent* StoneASC = Cast<UStoneAbilitySystemComponent>(AbilitySystemComponent);
+	if (!StoneASC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneSettlerChar] GatherCurrentAttributes: ASC invalid. Pawn=%s"), *GetName());
+		return Result;
+	}
+
+	const UStoneAttributeSet* AttrSet = Cast<UStoneAttributeSet>(AttributeSet);
+	if (!AttrSet)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneSettlerChar] GatherCurrentAttributes: AttributeSet invalid. Pawn=%s"), *GetName());
+		return Result;
+	}
+
+	// Iterate all registered tag->attribute mappings (covers Primary, Secondary, Vital, Culture, Knowledge, Worldline).
+	// This is intentionally tag-driven so no settler-specific hardcoding is needed.
+	for (const TPair<FGameplayTag, TStaticFuncPtr<FGameplayAttribute()>>& Pair : AttrSet->TagsToAttributes)
+	{
+		const FGameplayTag& Tag = Pair.Key;
+		if (!Tag.IsValid())
+		{
+			continue;
+		}
+
+		const FGameplayAttribute Attr = Pair.Value();
+		if (!Attr.IsValid())
+		{
+			continue;
+		}
+
+		// Skip meta attributes (IncomingDamage, IncomingHeal) - these are transient, never persisted.
+		const FString AttrName = Attr.AttributeName;
+		if (AttrName.StartsWith(TEXT("Incoming")))
+		{
+			continue;
+		}
+
+		const float Value = StoneASC->GetNumericAttribute(Attr);
+		Result.Add(FSavedAttribute(Tag, Value));
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] GatherCurrentAttributes: gathered %d attributes. Pawn=%s"),
+		Result.Num(), *GetName());
+
+	return Result;
 }
 
 FActiveGameplayEffectHandle AStoneSettlerChar::ApplyStateEffect(TSubclassOf<UGameplayEffect> EffectClass, float EffectLevel)

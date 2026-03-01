@@ -8,9 +8,10 @@
 #include "GameplayEffectTypes.h"
 #include "AbilitySystem/StoneAbilitySystemLibrary.h"
 #include "Core/Character/StoneSettlerChar.h"
+#include "Core/Components/StoneSettlerActionComponent.h"
+#include "Data/StoneEventData.h"
 #include "AbilitySystem/Data/AttributeInfo.h"
 #include "Core/StoneGameplayTags.h"
-#include "Runtime/StoneRunSubsystem.h"
 #include "Runtime/StoneRosterSubsystem.h"
 
 // -------------------------
@@ -62,8 +63,17 @@ void UMVVM_SettlerSlotDetails::BindToSettler(const FGuid& SettlerId, AStoneSettl
 	BoundActionComp = BoundSettler->FindComponentByClass<UStoneSettlerActionComponent>();
 	if (BoundActionComp)
 	{
+		BoundActionComp->OnActionStateChanged.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionStateChanged);
 		BoundActionComp->OnActionStateChanged.AddDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionStateChanged);
+		BoundActionComp->OnActionProgressChanged.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionProgressChanged);
 		BoundActionComp->OnActionProgressChanged.AddDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionProgressChanged);
+
+		// Encounter open/close is orthogonal to action running. Bind explicitly so the MVVM flag is reliable.
+		BoundActionComp->OnEncounterOpened.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleEncounterOpened);
+		BoundActionComp->OnEncounterOpened.AddDynamic(this, &UMVVM_SettlerSlotDetails::HandleEncounterOpened);
+		BoundActionComp->OnEncounterClosed.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleEncounterClosed);
+		BoundActionComp->OnEncounterClosed.AddDynamic(this, &UMVVM_SettlerSlotDetails::HandleEncounterClosed);
+
 		HandleActionStateChanged(); // initial push
 	}
 	else
@@ -74,19 +84,8 @@ void UMVVM_SettlerSlotDetails::BindToSettler(const FGuid& SettlerId, AStoneSettl
 		SetActionPhaseText(FText::GetEmpty());
 	}
 
-	// --- Bind Run Subsystem (global open event) ---
-	if (UWorld* World = BoundSettler->GetWorld())
-	{
-		if (UGameInstance* GI = World->GetGameInstance())
-		{
-			BoundRun = GI->GetSubsystem<UStoneRunSubsystem>();
-			if (BoundRun)
-			{
-				BoundRun->OnEventChanged.AddDynamic(this, &UMVVM_SettlerSlotDetails::HandleRunEventChanged);
-				SetHasOpenEvent(BoundRun->HasOpenEvent());
-			}
-		}
-	}
+	// After binding BoundActionComp:
+	SetHasOpenEvent(BoundActionComp->IsEncounterOpen());
 
 	// Try immediate ASC
 	if (UAbilitySystemComponent* ASC = BoundSettler->GetAbilitySystemComponent())
@@ -135,6 +134,25 @@ void UMVVM_SettlerSlotDetails::BindToSettler(const FGuid& SettlerId, AStoneSettl
 
 void UMVVM_SettlerSlotDetails::BeginDestroy()
 {
+	if (BoundActionComp)
+	{
+		BoundActionComp->OnActionStateChanged.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionStateChanged);
+		BoundActionComp->OnActionProgressChanged.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleActionProgressChanged);
+		BoundActionComp->OnEncounterOpened.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleEncounterOpened);
+		BoundActionComp->OnEncounterClosed.RemoveDynamic(this, &UMVVM_SettlerSlotDetails::HandleEncounterClosed);
+	}
+	BoundActionComp = nullptr;
+
+	if (BoundSettler && AscRegisteredHandle.IsValid())
+	{
+		BoundSettler->OnAscRegistered.Remove(AscRegisteredHandle);
+		AscRegisteredHandle.Reset();
+	}
+
+	UnbindAttributeDelegates();
+	BoundASC = nullptr;
+	BoundSettler = nullptr;
+
 	Super::BeginDestroy();
 }
 
@@ -490,6 +508,8 @@ void UMVVM_SettlerSlotDetails::HandleActionStateChanged()
 	SetActionProgress(BoundActionComp->GetActionProgress01());
 	SetActionTitleText(BoundActionComp->GetActionTitleText());
 	SetActionPhaseText(BoundActionComp->GetPhaseText());
+	SetHasOpenEvent(BoundActionComp->IsEncounterOpen());
+
 }
 
 void UMVVM_SettlerSlotDetails::HandleActionProgressChanged(float Progress01)
@@ -502,9 +522,14 @@ void UMVVM_SettlerSlotDetails::HandleActionProgressChanged(float Progress01)
 	}
 }
 
-void UMVVM_SettlerSlotDetails::HandleRunEventChanged(const UStoneEventData* Event)
+void UMVVM_SettlerSlotDetails::HandleEncounterOpened(const UStoneEventData* /*Event*/)
 {
-	SetHasOpenEvent(Event != nullptr);
+	SetHasOpenEvent(true);
+}
+
+void UMVVM_SettlerSlotDetails::HandleEncounterClosed(bool /*bAborted*/)
+{
+	SetHasOpenEvent(false);
 }
 
 // -------------------------

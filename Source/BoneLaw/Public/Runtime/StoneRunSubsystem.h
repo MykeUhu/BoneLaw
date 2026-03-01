@@ -5,27 +5,29 @@
 #include "GameplayTagContainer.h"
 #include "Data/StoneTypes.h"
 #include "Game/StoneRunTraceBuffer.h"
-#include "Game/Events/StoneEventResolver.h"
-
-#include "TimerManager.h"
 #include "StoneRunSubsystem.generated.h"
 
 class UStonePackLibrary;
-struct FStoneChoiceData;
-class UStoneWorldlineWeightPolicy;
-class UStoneWorldlineDirector;
 class UStoneEventLibrary;
+class UStoneEventPackData;
 class UStoneEventData;
-class UStoneScheduler;
-class UStoneEventResolver;
-class UStoneOutcomeExecutor;
 class AStonePlayerState;
 class UAbilitySystemComponent;
-class AActor;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneSnapshotChanged, const FStoneSnapshot&, Snapshot);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStoneEventChanged, const UStoneEventData*, Event);
 
+/**
+ * Global run state (very small): time counters + run tags + pack libraries.
+ *
+ * IMPORTANT SSOT RULES
+ * - Attributes live on the owning ASC (PlayerState / agent ASC). This subsystem never stores attribute truth.
+ * - Save/Load lives in SaveGame. This subsystem does not snapshot for persistence.
+ * - Encounters are handled per-settler by UStoneSettlerActionComponent / UStoneActionRuntime.
+ *
+ * NOTE: A few UI-facing APIs remain as compatibility stubs (OnEventChanged / GetResolvedChoices)
+ * so the UI can be migrated incrementally.
+ */
 USTRUCT(BlueprintType)
 struct FStoneRunConfig
 {
@@ -37,37 +39,14 @@ struct FStoneRunConfig
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FGameplayTagContainer StartingTags;
 
-	// StableName -> Value (uses TagsToAttributes from UStoneAttributeSet)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TMap<FName, float> StartingAttributeValues;
-
-	// Which packs are active at start
+	/** Which packs are active at start (SSOT provided by caller). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FName> StartingPackIds;
 
-	// If true, all packs are known but locked by requirements (recommended)
+	/** If true, all packs are known but locked by requirements (recommended). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bEnableAutoPackUnlocks = true;
 };
-
-UENUM(BlueprintType)
-enum class EStoneTravelPhase : uint8
-{
-	None UMETA(DisplayName="None"),
-	Outbound UMETA(DisplayName="Outbound"),
-	Arrival UMETA(DisplayName="Arrival"),
-	Return UMETA(DisplayName="Return"),
-	Completed UMETA(DisplayName="Completed")
-};
-
-UENUM(BlueprintType)
-enum class EStoneRealtimeActionType : uint8
-{
-	None UMETA(DisplayName="None"),
-	ExploreExpedition UMETA(DisplayName="Explore Expedition"),
-	Travel UMETA(DisplayName="Travel")
-};
-
 
 UCLASS()
 class BONELAW_API UStoneRunSubsystem : public UGameInstanceSubsystem
@@ -79,22 +58,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Stone|Run")
 	void StartNewRun(const FStoneRunConfig& Config);
 
-	// === Active Agent (who receives event outcomes) ===
-	// The run system is global (GameInstanceSubsystem), but events/outcomes may target a specific agent
-	// (e.g. the currently commanded Settler). When set, resolver checks + outcome execution use the
-	// agent's AbilitySystemComponent instead of the PlayerState ASC.
-	UFUNCTION(BlueprintCallable, Category="Stone|Run")
-	void SetActiveAgent(AActor* AgentActor);
-
-	UFUNCTION(BlueprintCallable, Category="Stone|Run")
-	void ClearActiveAgent();
-
-	UFUNCTION(BlueprintPure, Category="Stone|Run")
-	AActor* GetActiveAgent() const { return ActiveAgentActor.Get(); }
-	
-	// === Simulation Speed ===
-	// Effective simulation speed used for action ticking (0 = paused).
-	// This is separate from any Ability-System speed multiplier you may apply on agents.
+	// === Simulation Speed (global scalar; action components may choose to use it) ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Sim")
 	void SetSimulationSpeed(float NewSpeed);
 
@@ -104,141 +68,47 @@ public:
 	UFUNCTION(BlueprintPure, Category="Stone|Sim")
 	float GetSimulationSpeed() const;
 
-	// === Gameplay ===
-	UFUNCTION(BlueprintCallable, Category="Stone|Run")
-	void SetFocus(FGameplayTag InFocusTag);
-
-	UFUNCTION(BlueprintCallable, Category="Stone|Run")
-	void ApplyChoice(int32 ChoiceIndex);
-
-	UFUNCTION(BlueprintCallable, Category="Stone|Run")
-	const UStoneEventData* GetCurrentEvent() const { return CurrentEvent; }
-
+	// === Snapshot (UI convenience; not persistence) ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Run")
 	FStoneSnapshot GetSnapshot() const { return Snapshot; }
 
-	// Delegates
 	UPROPERTY(BlueprintAssignable, Category="Stone|Run")
 	FStoneSnapshotChanged OnSnapshotChanged;
 
+	/** Compatibility only (legacy global event panel). Per-settler actions should drive UI going forward. */
 	UPROPERTY(BlueprintAssignable, Category="Stone|Run")
 	FStoneEventChanged OnEventChanged;
-	
-	// === Simulation Speed (for real-time actions like expeditions) ===
-	// (0 = paused). Used by real-time systems (expeditions etc.).
-	UPROPERTY()
-	float UserSimSpeed = 1.f;
 
-	// Multiplier driven by the world clock (e.g. Ultra Dynamic Sky time speed)
-	UPROPERTY()
-	float WorldTimeSpeedMult = 1.f;
-
-	// === Expeditions (LEGACY: time-based realtime action; DEPRECATED) ===
-	// This system triggers events based on wall-clock seconds (countdowns) and random gaps.
-	// Replaced by UStoneSettlerActionComponent (progress-based encounters) for deterministic behavior.
-	UFUNCTION(BlueprintCallable, Category="Stone|Expedition", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based expedition. Use UStoneSettlerActionComponent (progress-based encounters) instead."))
-	UE_DEPRECATED(5.7, "LEGACY time-based expedition. Use UStoneSettlerActionComponent (progress-based encounters) instead.")
-	void StartExploreExpedition(FName ExplorePackId, float DurationSeconds = 300.f, float MinEventGapSeconds = 20.f, float MaxEventGapSeconds = 60.f, bool bTriggerFirstEventImmediately = false);
-
-	UFUNCTION(BlueprintCallable, Category="Stone|Expedition", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based expedition. Use UStoneSettlerActionComponent instead."))
-	UE_DEPRECATED(5.7, "LEGACY time-based expedition. Use UStoneSettlerActionComponent instead.")
-	void StopExpedition(bool bForceReturnEvent = false);
-
-	UFUNCTION(BlueprintPure, Category="Stone|Expedition", meta=(DeprecatedFunction, DeprecationMessage="LEGACY expedition state query. Use ActionComponent state/tags instead."))
-	UE_DEPRECATED(5.7, "LEGACY expedition state query. Use ActionComponent state/tags instead.")
-	bool IsOnExpedition() const;
-
-	UFUNCTION(BlueprintPure, Category="Stone|Expedition", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetActionProgress01()."))
-	UE_DEPRECATED(5.7, "LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetActionProgress01().")
-	float GetExpeditionProgress01() const;
-	
-	// === Travel Actions (LEGACY: time-based realtime action; DEPRECATED) ===
-	// This system triggers random travel events based on wall-clock seconds (countdowns),
-	// which breaks when time/speed is manipulated. Replaced by UStoneSettlerActionComponent
-	// which pre-rolls encounters at progress01 thresholds (deterministic, speed-agnostic).
-	//
-	// Do not add new code against this API. Keep only for migration / backward compatibility.
-	//
-	// Replacement:
-	//   - Use UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData*)
-	//   - Use progress-based encounter scheduling inside the ActionComponent
-	UFUNCTION(BlueprintCallable, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based travel action. Use UStoneSettlerActionComponent (progress-based encounters) instead."))
-	UE_DEPRECATED(5.7, "LEGACY time-based travel action. Use UStoneSettlerActionComponent (progress-based encounters) instead.")
-	void StartTravelAction(FName TravelPackId, float TotalSecondsAtSpeed1 = 300.f, float RandomMinGapSeconds = 30.f, float RandomMaxGapSeconds = 90.f, float RandomChance01 = 0.25f, bool bTriggerFirstOutboundEventImmediately = false);
-
-	UFUNCTION(BlueprintCallable, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based travel action. Use UStoneSettlerActionComponent (progress-based encounters) instead."))
-	UE_DEPRECATED(5.7, "LEGACY time-based travel action. Use UStoneSettlerActionComponent (progress-based encounters) instead.")
-	void StopTravelAction(bool bForceReturnHomeEvent = false);
-
-	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY travel state query. Use ActionComponent state/tags instead."))
-	UE_DEPRECATED(5.7, "LEGACY travel state query. Use ActionComponent state/tags instead.")
-	bool IsTravelActive() const { return bTravelActive; }
-
-	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY travel state query. Use ActionComponent state/tags instead."))
-	UE_DEPRECATED(5.7, "LEGACY travel state query. Use ActionComponent state/tags instead.")
-	EStoneTravelPhase GetTravelPhase() const { return TravelPhase; }
-
-	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetActionProgress01()."))
-	UE_DEPRECATED(5.7, "LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetActionProgress01().")
-	float GetTravelProgress01() const;
-
-	UFUNCTION(BlueprintPure, Category="Stone|Action|Travel", meta=(DeprecatedFunction, DeprecationMessage="LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetPhaseProgress01()."))
-	UE_DEPRECATED(5.7, "LEGACY time-based progress query. Use UStoneSettlerActionComponent::GetPhaseProgress01().")
-	float GetTravelLegProgress01() const;
-
-	// === Ambient / Idle random events (usually queued, not auto-presented) ===
-	UFUNCTION(BlueprintCallable, Category="Stone|Ambient")
-	bool TryRollAmbientEvent(float Chance01 = 0.15f, bool bAutoPresent = false);
-
-	UFUNCTION(BlueprintPure, Category="Stone|Ambient")
-	int32 GetPendingEventCount() const { return PendingEventIds.Num(); }
-
-	UFUNCTION(BlueprintCallable, Category="Stone|Ambient")
-	bool OpenNextPendingEvent();
-
-	// ==========================================================================
-	// TIME SYSTEM (UDS Integration)
-	// ==========================================================================
-	// All time data comes from Ultra Dynamic Sky (UDS) via Blueprint.
-	// C++ does NOT calculate time internally - only tracks counters.
-	//
-	// Blueprint (GameMode or PlayerController) binds to UDS events:
-	//   - UDS OnSunrise  -> Call OnSunrise()
-	//   - UDS OnSunset   -> Call OnSunset()  
-	//   - UDS OnHourChanged -> Call OnHourChanged(Hour)
-	// ==========================================================================
-
-	/** Called by Blueprint when UDS fires OnSunrise. Increments DayIndex, sets bIsNight=false. */
+	// === Time System (UDS Integration) ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Time")
 	void OnSunrise();
 
-	/** Called by Blueprint when UDS fires OnSunset. Increments TotalNightsPassed, sets bIsNight=true. */
 	UFUNCTION(BlueprintCallable, Category="Stone|Time")
 	void OnSunset();
 
-	/** Called by Blueprint when UDS fires OnHourChanged. Updates CurrentHour and may roll ambient event. */
 	UFUNCTION(BlueprintCallable, Category="Stone|Time")
 	void OnHourChanged(int32 NewHour);
 
-	/** Returns current time state (read-only). */
 	UFUNCTION(BlueprintPure, Category="Stone|Time")
 	const FStoneTimeState& GetTimeState() const { return Time; }
 
-	/** Returns true if currently night. */
 	UFUNCTION(BlueprintPure, Category="Stone|Time")
 	bool IsNight() const { return Time.bIsNight; }
 
-	/** Returns current day index (starts at 1). */
 	UFUNCTION(BlueprintPure, Category="Stone|Time")
 	int32 GetCurrentDay() const { return Time.DayIndex; }
 
-	// Helper (uses TagsToAttributes from UStoneAttributeSet for StableName lookup)
-	void SetAttrByStableName(const FName& StableName, float Value) const;
+	// === Run Tags (global meta state; NOT mirrored onto any ASC) ===
+	UFUNCTION(BlueprintCallable, Category="Stone|Run")
+	void AddRunTags(const FGameplayTagContainer& TagsToAdd);
 
 	UFUNCTION(BlueprintCallable, Category="Stone|Run")
-	void GetResolvedChoices(TArray<FStoneChoiceResolved>& OutResolved) const;
+	void RemoveRunTags(const FGameplayTagContainer& TagsToRemove);
 
-	// === Pack Control (Action-driven) ===
+	UFUNCTION(BlueprintPure, Category="Stone|Run")
+	FGameplayTagContainer GetRunTags() const { return RunTags; }
+
+	// === Pack Library ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Packs")
 	void ActivatePackTemporary(FName PackId);
 
@@ -251,69 +121,26 @@ public:
 	UFUNCTION(BlueprintPure, Category="Stone|Packs")
 	const TArray<FName>& GetActivePackIds() const { return ActivePackIds; }
 
+	// === Trace ===
 	UFUNCTION(BlueprintCallable, Category="Stone|Trace")
 	UStoneRunTraceBuffer* GetTraceBuffer() const { return Trace; }
-	
-	UFUNCTION(BlueprintCallable, Category="Stone|Event")
-	void QueueEventByTag(const FGameplayTag& EventTag, bool bAutoPresent);
 
-	bool HasOpenEvent() const;
-
-	UFUNCTION(BlueprintPure, Category="Stone|Action")
-	bool IsAnyRealtimeActionActive() const { return bExpeditionActive || bTravelActive; }
-
-	void AddStateTags(const FGameplayTagContainer& TagsToAdd);
-	void RemoveStateTags(const FGameplayTagContainer& TagsToRemove);
-	FGameplayTagContainer GetCurrentStateTags() const;
-	
-	void AddRunTags(const FGameplayTagContainer& Tags) { AddStateTags(Tags); }
-	void RemoveRunTags(const FGameplayTagContainer& Tags) { RemoveStateTags(Tags); }
-
-	void SetFocusTag(FGameplayTag Focus) { SetFocus(Focus); }
-	
+	// === GAS ===
+	UFUNCTION(BlueprintPure, Category="Stone|GAS")
 	UAbilitySystemComponent* GetASC() const;
-	
-	void ForceNextEvent(FName EventId);
-	void PoolAddEvent(FName EventId);
-	void PoolRemoveEvent(FName EventId);
 
 protected:
 	virtual void Deinitialize() override;
 
 private:
-	// === GAS Access via PlayerState ===
-	// The PlayerState owns the AbilitySystemComponent. We cache a weak reference
-	// and refresh it when needed. This ensures GAS is properly owned by PlayerState
-	// per Unreal Engine best practices for multiplayer.
+	// Cache local player PlayerState (PlayerState owns the ASC in your architecture)
 	UPROPERTY()
 	TWeakObjectPtr<AStonePlayerState> CachedPlayerState;
 
-	// Active agent override for event resolution/outcomes.
-	// When not set, we fall back to the PlayerState ASC.
-	UPROPERTY(Transient)
-	TWeakObjectPtr<AActor> ActiveAgentActor;
-
-	UPROPERTY(Transient)
-	TWeakObjectPtr<UAbilitySystemComponent> ActiveAgentASC;
-
-	/** Attempts to find and cache the local player's PlayerState. Returns true if valid. */
 	bool EnsurePlayerStateCache();
-
-	/** Returns the cached PlayerState or nullptr if not available. */
 	AStonePlayerState* GetPlayerState() const;
 
-	UPROPERTY()
-	TObjectPtr<UStoneScheduler> Scheduler;
-
-	UPROPERTY()
-	TObjectPtr<UStoneEventResolver> Resolver;
-
-	UPROPERTY()
-	TObjectPtr<UStoneOutcomeExecutor> OutcomeExecutor;
-
-	UPROPERTY()
-	TObjectPtr<UStoneEventData> CurrentEvent;
-
+	// UI convenience only
 	UPROPERTY()
 	FStoneSnapshot Snapshot;
 
@@ -323,68 +150,19 @@ private:
 	UPROPERTY()
 	FGameplayTagContainer RunTags;
 
+	// Simulation speed scalars
 	UPROPERTY()
-	FGameplayTag FocusTag;
+	float UserSimSpeed = 1.f;
 
 	UPROPERTY()
-	TArray<FName> EventPoolIds;
+	float WorldTimeSpeedMult = 1.f;
 
+	// Packs
 	UPROPERTY()
-	TObjectPtr<UStoneRunTraceBuffer> Trace;
-
-	void TraceAdd(EStoneTraceType Type, const FString& Details, FName EventId = NAME_None, int32 ChoiceIndex = INDEX_NONE);
+	TObjectPtr<UStonePackLibrary> PackLibrary;
 
 	UPROPERTY()
 	TObjectPtr<UStoneEventLibrary> EventLibrary;
-
-	UPROPERTY()
-	TObjectPtr<UStoneWorldlineDirector> Worldline;
-
-	UStoneEventData* GetEventFast(FName EventId) const;
-	void EnsureEventLibrary(bool bPreloadAllSync);
-
-	UPROPERTY()
-	TObjectPtr<UStoneWorldlineWeightPolicy> WeightPolicy;
-
-	// Deterministic RNG
-	FRandomStream RNG;
-
-	// === Helpers ===
-	void BuildInitialEventPool(const FStoneRunConfig& Config);
-	void AddEventsFromPackId(FName PackId, bool bPreloadIfPackRequests);
-
-	void RebuildSnapshot();
-	void BroadcastSnapshot();
-
-	// --- Realtime / Idle flow ---
-	bool ShouldIdleBetweenEvents() const;
-
-	// allows: forced scheduled only, optional random pool
-	void PickNextEvent(bool bAllowScheduledOverride, bool bAllowRandomFromPool, bool bForceRandomEvenIfIdle = false);
-
-	UPROPERTY()
-	TArray<FName> RealtimeForcedQueue;
-
-	bool TryConsumeScheduledForcedEvent(FName& OutEventId);
-
-	void ExecuteChoiceOutcomes(const FStoneChoiceData& Choice, bool bSoftFailPath);
-
-	/** Increments TotalChoices counter. Called after each player action/decision. */
-	void IncrementChoiceCounter();
-
-	/** Applies day/night gameplay tags based on current state. */
-	void ApplyDayNightTags(bool bNowNight);
-
-	void EnsureWorldlineDirector();
-	void UpdateWorldlineAndUnlocks();
-
-	void EnsureWeightPolicy();
-	float ComputeCrisisMultiplier(const FStoneSnapshot& Snap, const UStoneEventData* Event) const;
-	
-	UStoneEventData* LoadEventById(FName EventId) const;
-
-	UPROPERTY()
-	TObjectPtr<UStonePackLibrary> PackLibrary;
 
 	UPROPERTY()
 	TArray<FName> ActivePackIds;
@@ -394,111 +172,25 @@ private:
 
 	UPROPERTY()
 	bool bAutoPackUnlocksEnabled = true;
-	
-	// --- Expedition runtime state (real-time) ---
-	UPROPERTY()
-	bool bExpeditionActive = false;
 
-	UPROPERTY()
-	FName ExpeditionPackId = NAME_None;
-
-	UPROPERTY()
-	float ExpeditionDurationSeconds = 0.f;
-
-	UPROPERTY()
-	float ExpeditionElapsedSeconds = 0.f;
-
-	// Countdown until the next event may appear (seconds, scaled by SimulationSpeed)
-	UPROPERTY()
-	float RealtimeNextEventCountdown = 0.f;
-
-	UPROPERTY()
-	float RealtimeMinEventGapSeconds = 20.f;
-
-	UPROPERTY()
-	float RealtimeMaxEventGapSeconds = 60.f;
-
-	UPROPERTY()
-	bool bExpeditionReturnQueued = false;
-
-	// --- Temporary packs (activated only while an action is active) ---
+	// Temporary packs are activated by gameplay (usually by an action) and reverted afterwards.
 	UPROPERTY()
 	TArray<FName> TemporaryPackIds;
 
-	// --- Pending events (ambient/idle) ---
+	// Trace
 	UPROPERTY()
-	TArray<FName> PendingEventIds;
+	TObjectPtr<UStoneRunTraceBuffer> Trace;
 
-	// (Time is now externally controlled by UDS - no internal day/night calculation)
+	// Helpers
+	void ApplyDayNightTags(bool bNowNight);
+	void RebuildSnapshot();
+	void BroadcastSnapshot();
 
-	// --- Travel runtime state (real-time action) ---
-	UPROPERTY()
-	bool bTravelActive = false;
-
-	UPROPERTY()
-	FName TravelPackId = NAME_None;
-
-	UPROPERTY()
-	EStoneTravelPhase TravelPhase = EStoneTravelPhase::None;
-
-	UPROPERTY()
-	float TravelTotalSeconds = 0.f;
-
-	UPROPERTY()
-	float TravelOutboundSeconds = 0.f;
-
-	UPROPERTY()
-	float TravelReturnSeconds = 0.f;
-
-	UPROPERTY()
-	float TravelLegElapsedSeconds = 0.f;
-
-	// Countdown until next optional random travel event (scaled by SimulationSpeed)
-	UPROPERTY()
-	float TravelRandomCountdownSeconds = 0.f;
-
-	UPROPERTY()
-	float TravelRandomMinGapSeconds = 30.f;
-
-	UPROPERTY()
-	float TravelRandomMaxGapSeconds = 90.f;
-
-	UPROPERTY()
-	float TravelRandomChance01 = 0.25f;
-
-	FTimerHandle ExpeditionTickHandle;
-
-	void SetOnExpeditionTag(bool bOn);
-	void StartExpeditionTick();
-	void StopExpeditionTick();
-	void TickExpedition();
-	void ReturnToRealtimeTravelState();
-	void QueueNextRealtimeEvent(bool bAllowImmediate);
-	void ForceReturnEvent();
-	bool TryPickReturnEventId(FName& OutEventId);
-
-
-	// Pack pool maintenance
-	void RebuildEventPoolFromActivePacks(bool bPreloadIfPackRequests);
-
-	bool IsPackActive(FName PackId) const { return ActivePackIds.Contains(PackId); }
-	void DeactivatePackInternal(FName PackId);
-
-	// Generic tag-based picker (used for travel phases)
-	bool TryPickEventIdByTag(const FGameplayTag& RequiredTag, FName& OutEventId);
-
-	// Travel ticking / forced phases
-	void StartRealtimeActionTick();
-	void StopRealtimeActionTick();
-	void TickRealtimeActions();
-	void EnterTravelPhase(EStoneTravelPhase NewPhase);
-	void ForceTravelArrivalEvent();
-	void ForceTravelReturnHomeEvent();
-
-	void TryAutoUnlockPacks();
 	void EnsurePackLibrary(bool bPreloadAllSync);
-	
-	// Todo from old Event system that we need for run but should be replaced soon only actionsystem is king
-	void EnsureCoreSystems();
-	
+	void EnsureEventLibrary(bool bPreloadAllSync);
+	void BuildInitialEventPool(const FStoneRunConfig& Config);
+	void AddEventsFromPackId(FName PackId, bool bPreloadIfPackRequests);
+	void RebuildEventPoolFromActivePacks(bool bPreloadIfPackRequests);
+	void DeactivatePackInternal(FName PackId);
+	void TryAutoUnlockPacks();
 };

@@ -3,7 +3,10 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameplayTagContainer.h"
+#include "Runtime/StoneActionRuntime.h"
 #include "Runtime/StoneActionTypes.h"
+// Defines FStoneChoiceResolved used by encounter UI APIs
+#include "Game/Events/StoneEventResolver.h"
 #include "StoneSettlerActionComponent.generated.h"
 
 class UStoneActionDefinitionData;
@@ -122,6 +125,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Stone|Action|Encounter")
 	void ResolveCurrentEncounter(bool bAborted);
 
+	/** True while an encounter UI is open for this settler. */
+	UFUNCTION(BlueprintPure, Category="Stone|Action|Encounter")
+	bool IsEncounterOpen() const { return bEncounterOpen; }
+
+	/** The currently open encounter event (may be null). */
+	UFUNCTION(BlueprintPure, Category="Stone|Action|Encounter")
+	const UStoneEventData* GetCurrentEncounterEvent() const { return CurrentEncounterEvent; }
+
 	UPROPERTY(BlueprintAssignable, Category = "Stone|Action")
 	FStoneSettlerActionStateChanged OnActionStateChanged;
 
@@ -142,6 +153,20 @@ public:
 	/** Encounter closed for this settler. */
 	UPROPERTY(BlueprintAssignable, Category = "Stone|Action|Encounter")
 	FStoneSettlerEncounterClosed OnEncounterClosed;
+	
+	UPROPERTY(Transient)
+	TObjectPtr<UStoneActionRuntime> ActionRuntime;
+	
+	UPROPERTY(Transient)
+	TObjectPtr<UStoneEventData> CurrentEncounterEvent;
+	
+	/** Returns resolved choices for the currently open encounter (for UI). */
+	UFUNCTION(BlueprintCallable, Category="Stone|Action|Encounter")
+	void GetCurrentEncounterChoices(TArray<FStoneChoiceResolved>& OutResolved) const;
+
+	/** Applies a choice to the currently open encounter (OutcomeExecutor etc.) */
+	UFUNCTION(BlueprintCallable, Category="Stone|Action|Encounter")
+	bool ApplyEncounterChoice(int32 ChoiceIndex);
 
 private:
 	void StopInternal(bool bSuccess, bool bForceReturnHomeEvent);

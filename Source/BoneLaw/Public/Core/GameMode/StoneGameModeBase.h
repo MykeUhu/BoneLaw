@@ -41,6 +41,18 @@ public:
 	ULoadScreenSaveGame* GetSaveSlotData(const FString& SlotName, int32 SlotIndex) const;
 	static void DeleteSlot(const FString& SlotName, int32 SlotIndex);
 
+	/**
+	 * Gather current gameplay state (settler attributes, tags, transforms, run state)
+	 * and write it into the active save slot.
+	 *
+	 * Call this whenever a meaningful save point is reached (e.g. after choice resolution,
+	 * on day end, or on explicit player save action).
+	 *
+	 * Authority only. Safe to call from Blueprint.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Stone|Save")
+	void SaveGameplayState();
+
 	UPROPERTY(EditDefaultsOnly, Category="Stone|Save")
 	TSubclassOf<USaveGame> LoadScreenSaveGameClass;
 

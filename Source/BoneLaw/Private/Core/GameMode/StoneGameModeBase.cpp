@@ -1,4 +1,4 @@
-﻿#include "Core/GameMode/StoneGameModeBase.h"
+#include "Core/GameMode/StoneGameModeBase.h"
 
 #include "Core/LoadScreenSaveGame.h"
 #include "Core/StoneGameInstance.h"
@@ -8,6 +8,7 @@
 #include "UI/HUD/StoneHUD.h"
 #include "Core/StonePlayerController.h"
 #include "UI/ViewModel/MVVM_LoadSlot.h"
+#include "Runtime/StoneRosterSubsystem.h"
 
 AStoneGameModeBase::AStoneGameModeBase()
 {
@@ -258,6 +259,69 @@ void AStoneGameModeBase::SaveSlotData(UMVVM_LoadSlot* LoadSlot, int32 SlotIndex)
 
 	UE_LOG(LogTemp, Log, TEXT("[SaveSlotData] SaveGameToSlot SUCCESS. Name='%s' Index=%d MapKey='%s'"),
 		*SlotName, SlotIndex, *Save->MapName);
+}
+
+void AStoneGameModeBase::SaveGameplayState()
+{
+	if (!HasAuthority())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneGameModeBase] SaveGameplayState: called without authority. Ignoring."));
+		return;
+	}
+
+	UStoneGameInstance* GI = Cast<UStoneGameInstance>(GetGameInstance());
+	if (!GI)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneGameModeBase] SaveGameplayState: StoneGameInstance missing."));
+		return;
+	}
+
+	const FString SlotName = GI->LoadSlotName;
+	const int32 SlotIndex = GI->LoadSlotIndex;
+
+	if (SlotName.IsEmpty())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneGameModeBase] SaveGameplayState: LoadSlotName is empty. Aborting save."));
+		return;
+	}
+
+	// Load existing save so we preserve all fields we are not overwriting.
+	ULoadScreenSaveGame* Save = GetSaveSlotData(SlotName, SlotIndex);
+	if (!Save)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneGameModeBase] SaveGameplayState: GetSaveSlotData returned null. SlotName='%s' SlotIndex=%d"),
+			*SlotName, SlotIndex);
+		return;
+	}
+
+	// --- Settler Roster ---
+	UStoneRosterSubsystem* Roster = GetWorld() ? GetWorld()->GetSubsystem<UStoneRosterSubsystem>() : nullptr;
+	if (Roster)
+	{
+		Save->SavedSettlers = Roster->GatherRosterState();
+		UE_LOG(LogTemp, Log, TEXT("[StoneGameModeBase] SaveGameplayState: gathered %d settlers."), Save->SavedSettlers.Num());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneGameModeBase] SaveGameplayState: StoneRosterSubsystem not found. Settler state not saved."));
+	}
+
+	// --- Run State (DEPRECATED) ---
+	// Intentionally NOT saved anymore.
+	// The ActionComponent system is the new SSOT for gameplay flow/state.
+
+	// --- Write to disk ---
+	const bool bSaved = UGameplayStatics::SaveGameToSlot(Save, SlotName, SlotIndex);
+	if (bSaved)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[StoneGameModeBase] SaveGameplayState: SUCCESS. SlotName='%s' SlotIndex=%d Settlers=%d"),
+			*SlotName, SlotIndex, Save->SavedSettlers.Num());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[StoneGameModeBase] SaveGameplayState: SaveGameToSlot FAILED. SlotName='%s' SlotIndex=%d"),
+			*SlotName, SlotIndex);
+	}
 }
 
 void AStoneGameModeBase::TravelToMap(UMVVM_LoadSlot* Slot)

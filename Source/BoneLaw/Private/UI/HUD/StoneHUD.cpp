@@ -7,7 +7,6 @@
 #include "UI/Widget/StoneSettlerScreenWidget.h"
 #include "UI/Widget/StoneUserWidget.h"
 #include "UI/WidgetController/StoneOverlayWidgetController.h"
-#include "UI/WidgetController/StoneStatsWidgetController.h"
 
 UStoneOverlayWidgetController* AStoneHUD::GetOverlayWidgetController(const FWidgetControllerParams& WCParams)
 {
@@ -21,21 +20,6 @@ UStoneOverlayWidgetController* AStoneHUD::GetOverlayWidgetController(const FWidg
 	}
 	return OverlayWidgetController;
 }
-
-UStoneStatsWidgetController* AStoneHUD::GetStatsWidgetController(const FWidgetControllerParams& WCParams)
-{
-	if (StatsWidgetController == nullptr)
-	{
-		checkf(StatsWidgetControllerClass, TEXT("Stats Widget Controller Class uninitialized, please fill out BP_StoneHUD"));
-		StatsWidgetController = NewObject<UStoneStatsWidgetController>(this, StatsWidgetControllerClass);
-		StatsWidgetController->SetWidgetControllerParams(WCParams);
-		StatsWidgetController->BindCallbacksToDependencies();
-		return StatsWidgetController;
-	}
-	return StatsWidgetController;
-}
-
-
 
 void AStoneHUD::InitOverlay(APlayerController* PC, APlayerState* PS, UAbilitySystemComponent* ASC, UAttributeSet* AS)
 {

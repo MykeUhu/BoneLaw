@@ -1,4 +1,4 @@
-﻿// Copyright by MykeUhu
+// Copyright by MykeUhu
 
 #pragma once
 
@@ -37,6 +37,14 @@ public:
 	/** Apply save-driven state to this pawn (data-only). Safe to call multiple times. */
 	UFUNCTION(BlueprintCallable, Category="Stone|Roster")
 	void ApplySavedState(const FSavedSettler& SettlerData);
+
+	/**
+	 * Gather all current live attribute values from the ASC into an array of FSavedAttribute.
+	 * Authority only. Uses TagsToAttributes map - works for any settler regardless of CharacterClass.
+	 * Returns empty array if ASC or AttributeSet is invalid.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Stone|Roster")
+	TArray<FSavedAttribute> GatherCurrentAttributes() const;
 	
 	UFUNCTION(BlueprintPure, Category="Stone|Action")
 	UStoneSettlerActionComponent* GetActionComponent() const { return ActionComponent; }

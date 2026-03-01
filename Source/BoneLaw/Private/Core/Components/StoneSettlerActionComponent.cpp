@@ -6,6 +6,7 @@
 #include "Core/StoneGameplayTags.h"
 #include "Data/StoneEventData.h"
 #include "Data/StoneActionDefinitionData.h"
+#include "Game/Events/StoneEventResolver.h"
 
 // Engine
 #include "AbilitySystemComponent.h"
@@ -66,7 +67,8 @@ bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* Actio
 {
 	if (!ActionDef)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] StartAction failed: ActionDef is null. Owner=%s"), *GetNameSafe(GetOwner()));
+		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] StartAction failed: ActionDef is null. Owner=%s"),
+			*GetNameSafe(GetOwner()));
 		return false;
 	}
 
@@ -90,38 +92,69 @@ bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* Actio
 		StopCurrentAction(false);
 	}
 
-	// From here: clean start (covers 'no action running' and 'we just stopped old one')
+	// From here: clean start
 	StopCurrentAction(false);
 
 	CurrentDef = ActionDef;
 	bActionRunning = true;
 	bReturnHomeQueued = false;
-	
-	// Optional: apply action-scoped tags to the Settler ASC for the lifetime of this action.
-	// WARNING: Do not put BT phase/state tags here. Those are managed by EnterPhase() SSOT.
-	AppliedStateTags = CurrentDef->GrantedStateTags;
 
+	// Create/Init ActionRuntime (per-action brain)
+	{
+		UAbilitySystemComponent* ASC = GetASC();
+		if (!ASC)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[SettlerAction] StartAction failed: ASC is null. Owner=%s Def=%s"),
+				*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef));
+
+			StopInternal(false, false);
+			return false;
+		}
+
+		ActionRuntime = nullptr;
+
+		ActionRuntime = NewObject<UStoneActionRuntime>(this);
+		if (!ActionRuntime)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[SettlerAction] StartAction failed: could not create ActionRuntime. Owner=%s"),
+				*GetNameSafe(GetOwner()));
+
+			StopInternal(false, false);
+			return false;
+		}
+
+		const int32 Seed = RNG.RandRange(1, INT32_MAX);
+
+		if (!ActionRuntime->Init(ASC, Seed))
+		{
+			UE_LOG(LogTemp, Error, TEXT("[SettlerAction] StartAction failed: ActionRuntime Init failed. Owner=%s Def=%s Seed=%d"),
+				*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef), Seed);
+
+			ActionRuntime = nullptr;
+			StopInternal(false, false);
+			return false;
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("[SettlerAction] ActionRuntime initialized. Owner=%s Def=%s Seed=%d"),
+			*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef), Seed);
+	}
+
+	// Apply action-scoped tags (optional)
+	AppliedStateTags = CurrentDef->GrantedStateTags;
 	if (AppliedStateTags.Num() > 0)
 	{
 		if (UAbilitySystemComponent* ASC = GetASC())
 		{
 			ASC->AddLooseGameplayTags(AppliedStateTags);
-
 			UE_LOG(LogTemp, Log, TEXT("[SettlerAction] Applied GrantedStateTags x%d to ASC. Owner=%s Def=%s"),
 				AppliedStateTags.Num(), *GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef));
 		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] GrantedStateTags present but ASC is null. Owner=%s Def=%s"),
-				*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef));
-		}
 	}
 
-	BaseDurationSeconds = FMath::Max(1.f, ActionDef->BaseDurationSeconds);
+	BaseDurationSeconds = FMath::Max(1.f, CurrentDef->BaseDurationSeconds);
 
-	OutboundSeconds = BaseDurationSeconds * ActionDef->OutboundShare01;
-	ReturnSeconds   = BaseDurationSeconds * ActionDef->ReturnShare01;
-
+	OutboundSeconds = BaseDurationSeconds * CurrentDef->OutboundShare01;
+	ReturnSeconds   = BaseDurationSeconds * CurrentDef->ReturnShare01;
 	ArrivalSeconds  = FMath::Max(0.f, BaseDurationSeconds - OutboundSeconds - ReturnSeconds);
 
 	Phase = EStoneActionPhase::Outbound;
@@ -134,47 +167,36 @@ bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* Actio
 	bEncounterOpen = false;
 	CurrentEncounterTag = FGameplayTag();
 	bLastEncounterAborted = false;
+	CurrentEncounterEvent = nullptr;
 
-	// Pre-roll encounter slots using progress01 thresholds (NOT wall-clock seconds).
-	for (int32 i = 0; i < ActionDef->OutboundRandomCountMax; ++i)
+	// Pre-roll encounter slots
+	for (int32 i = 0; i < CurrentDef->OutboundRandomCountMax; ++i)
 	{
-		if (RNG.FRand() <= ActionDef->OutboundRandomChance01)
+		if (RNG.FRand() <= CurrentDef->OutboundRandomChance01)
 		{
 			FStonePlannedEncounter Slot;
 			Slot.EventTag = GetRandomActionTag(EStoneActionPhase::Outbound);
-			Slot.TriggerAtProgress01 = RNG.FRandRange(ActionDef->OutboundRandomAtMin01, ActionDef->OutboundRandomAtMax01);
+			Slot.TriggerAtProgress01 = RNG.FRandRange(CurrentDef->OutboundRandomAtMin01, CurrentDef->OutboundRandomAtMax01);
 			Slot.bTriggered = false;
 			OutboundEncounterSlots.Add(Slot);
 		}
 	}
 
-	for (int32 i = 0; i < ActionDef->ReturnRandomCountMax; ++i)
+	for (int32 i = 0; i < CurrentDef->ReturnRandomCountMax; ++i)
 	{
-		if (RNG.FRand() <= ActionDef->ReturnRandomChance01)
+		if (RNG.FRand() <= CurrentDef->ReturnRandomChance01)
 		{
 			FStonePlannedEncounter Slot;
 			Slot.EventTag = GetRandomActionTag(EStoneActionPhase::Return);
-			Slot.TriggerAtProgress01 = RNG.FRandRange(ActionDef->ReturnRandomAtMin01, ActionDef->ReturnRandomAtMax01);
+			Slot.TriggerAtProgress01 = RNG.FRandRange(CurrentDef->ReturnRandomAtMin01, CurrentDef->ReturnRandomAtMax01);
 			Slot.bTriggered = false;
 			ReturnEncounterSlots.Add(Slot);
 		}
 	}
 
-	OutboundEncounterSlots.Sort([](const FStonePlannedEncounter& A, const FStonePlannedEncounter& B)
-	{
-		return A.TriggerAtProgress01 < B.TriggerAtProgress01;
-	});
-	ReturnEncounterSlots.Sort([](const FStonePlannedEncounter& A, const FStonePlannedEncounter& B)
-	{
-		return A.TriggerAtProgress01 < B.TriggerAtProgress01;
-	});
+	OutboundEncounterSlots.Sort([](const FStonePlannedEncounter& A, const FStonePlannedEncounter& B) { return A.TriggerAtProgress01 < B.TriggerAtProgress01; });
+	ReturnEncounterSlots.Sort([](const FStonePlannedEncounter& A, const FStonePlannedEncounter& B) { return A.TriggerAtProgress01 < B.TriggerAtProgress01; });
 
-	// IMPORTANT:
-	// No RunSubsystem. All state is per-settler; state tags/effects are applied on the Settler ASC.
-	// Called in Behaivor Tree
-	//EnterPhase(EStoneActionPhase::Outbound);
-
-	// Start tick timer
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().SetTimer(ActionTickHandle, this, &UStoneSettlerActionComponent::TickAction, kActionTickInterval, true);
@@ -183,7 +205,7 @@ bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* Actio
 	OnActionStateChanged.Broadcast();
 
 	UE_LOG(LogTemp, Log, TEXT("[SettlerAction] Started action: %s Owner=%s Base=%.2fs Out=%.2fs Work=%.2fs Ret=%.2fs"),
-		*ActionDef->GetName(), *GetNameSafe(GetOwner()), BaseDurationSeconds, OutboundSeconds, ArrivalSeconds, ReturnSeconds);
+		*CurrentDef->GetName(), *GetNameSafe(GetOwner()), BaseDurationSeconds, OutboundSeconds, ArrivalSeconds, ReturnSeconds);
 
 	return true;
 }
@@ -202,6 +224,9 @@ void UStoneSettlerActionComponent::StopInternal(bool bSuccess, bool bForceReturn
 {
 	if (!bActionRunning)
 	{
+		// auch hier SSOT cleanup (falls jemand StopInternal aufruft ohne running)
+		ActionRuntime = nullptr;
+		CurrentEncounterEvent = nullptr;
 		return;
 	}
 
@@ -211,7 +236,14 @@ void UStoneSettlerActionComponent::StopInternal(bool bSuccess, bool bForceReturn
 	{
 		World->GetTimerManager().ClearTimer(ActionTickHandle);
 	}
-	
+
+	// Close encounter UI cleanly FIRST
+	NotifyEncounterClosed(bLastEncounterAborted);
+
+	// Now it's safe to destroy runtime state
+	ActionRuntime = nullptr;
+	CurrentEncounterEvent = nullptr;
+		
 	// Optional: remove action-scoped tags we applied to the Settler ASC.
 	if (AppliedStateTags.Num() > 0)
 	{
@@ -563,9 +595,14 @@ void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag PhaseTag)
 		return;
 	}
 
-	// Build the required tag set: ActionTag (e.g. Action.Explore.Forest) + PhaseTag (e.g. Action.Phase.Outbound).
-	// Both must be present on an EventData asset for it to be eligible.
-	// This prevents e.g. a Forest Outbound encounter from matching Cave Outbound events.
+	if (!ActionRuntime)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[SettlerAction] OpenEncounterByTag failed: ActionRuntime is null. Owner=%s Def=%s"),
+			*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef));
+		return;
+	}
+
+	// Build required tags: PhaseTag + ActionTag
 	FGameplayTagContainer RequiredTags;
 	RequiredTags.AddTag(PhaseTag);
 
@@ -576,73 +613,27 @@ void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag PhaseTag)
 	else
 	{
 		UE_LOG(LogTemp, Warning,
-			TEXT("[SettlerAction] OpenEncounterByTag: CurrentDef has no ActionTag - matching by PhaseTag only ('%s'). "
-			     "Encounters from ALL action types will be eligible. Owner=%s Def=%s"),
+			TEXT("[SettlerAction] OpenEncounterByTag: CurrentDef has no ActionTag - matching by PhaseTag only ('%s'). ")
+			TEXT("Encounters from ALL action types will be eligible. Owner=%s Def=%s"),
 			*PhaseTag.ToString(), *GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef));
 	}
 
-	UAssetManager& AM = UAssetManager::Get();
-	static const FPrimaryAssetType StoneEventType(TEXT("StoneEvent"));
-
-	TArray<FPrimaryAssetId> Ids;
-	AM.GetPrimaryAssetIdList(StoneEventType, Ids);
-
-	if (Ids.Num() == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] No primary assets registered for type '%s'. Check AssetManager settings / PrimaryAssetId on UStoneEventData."),
-			*StoneEventType.ToString());
-		return;
-	}
-
-	TArray<UStoneEventData*> Matching;
-	Matching.Reserve(8);
-
-	FStreamableManager& SM = AM.GetStreamableManager();
-
-	for (const FPrimaryAssetId& Id : Ids)
-	{
-		const FSoftObjectPath Path = AM.GetPrimaryAssetPath(Id);
-		if (!Path.IsValid())
-		{
-			UE_LOG(LogTemp, Verbose, TEXT("[SettlerAction] PrimaryAssetPath invalid for %s"), *Id.ToString());
-			continue;
-		}
-
-		UObject* Obj = SM.LoadSynchronous(Path, /*bManageActiveHandle*/ false);
-		UStoneEventData* Event = Cast<UStoneEventData>(Obj);
-		if (!Event)
-		{
-			continue;
-		}
-
-		// Match ALL required tags (ActionTag AND PhaseTag).
-		// HasAll returns true only if every tag in RequiredTags is present in Event->EventTags.
-		if (Event->EventTags.HasAll(RequiredTags))
-		{
-			Matching.Add(Event);
-		}
-	}
-
-	if (Matching.Num() == 0)
+	UStoneEventData* Picked = ActionRuntime->PickEventByRequiredTags(RequiredTags);
+	if (!Picked)
 	{
 		UE_LOG(LogTemp, Warning,
-			TEXT("[SettlerAction] No UStoneEventData found matching RequiredTags='%s'. "
-			     "Check that EventData assets have BOTH ActionTag AND PhaseTag in EventTags. Owner=%s Def=%s"),
+			TEXT("[SettlerAction] No UStoneEventData found matching RequiredTags='%s'. ")
+			TEXT("Check EventData assets have BOTH ActionTag AND PhaseTag in EventTags. Owner=%s Def=%s"),
 			*RequiredTags.ToStringSimple(), *GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef));
 		return;
 	}
 
-	const int32 PickIndex = RNG.RandRange(0, Matching.Num() - 1);
-	UStoneEventData* Picked = Matching[PickIndex];
-
-	// Guard: if nobody is listening, auto-resolve immediately so the action timeline is
-	// not blocked forever. This can happen when the SettlerSlotDetails widget is closed
-	// or has not yet bound to OnEncounterOpened for this settler.
+	// Guard: if nobody is listening, auto-resolve immediately so the action timeline is not blocked forever.
 	if (!OnEncounterOpened.IsBound())
 	{
 		UE_LOG(LogTemp, Warning,
-			TEXT("[SettlerAction] Encounter '%s' would open for RequiredTags='%s' but OnEncounterOpened has no listeners. "
-			     "Auto-resolving to prevent action stall. Owner=%s"),
+			TEXT("[SettlerAction] Encounter '%s' would open for RequiredTags='%s' but OnEncounterOpened has no listeners. ")
+			TEXT("Auto-resolving to prevent action stall. Owner=%s"),
 			*GetNameSafe(Picked), *RequiredTags.ToStringSimple(), *GetNameSafe(GetOwner()));
 		return;
 	}
@@ -655,6 +646,7 @@ void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag PhaseTag)
 		TEXT("[SettlerAction] Encounter opened: RequiredTags='%s' Picked='%s' Owner=%s"),
 		*RequiredTags.ToStringSimple(), *GetNameSafe(Picked), *GetNameSafe(GetOwner()));
 
+	CurrentEncounterEvent = Picked;
 	OnEncounterOpened.Broadcast(Picked);
 }
 
@@ -686,3 +678,59 @@ void UStoneSettlerActionComponent::ResolveCurrentEncounter(bool bAborted)
 	NotifyEncounterClosed(bAborted);
 }
 
+void UStoneSettlerActionComponent::GetCurrentEncounterChoices(TArray<FStoneChoiceResolved>& OutResolved) const
+{
+	OutResolved.Reset();
+
+	if (!bEncounterOpen)
+	{
+		return;
+	}
+
+	if (!ActionRuntime)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] GetCurrentEncounterChoices: ActionRuntime null. Owner=%s"), *GetNameSafe(GetOwner()));
+		return;
+	}
+
+	// Du hast das EventData Objekt beim OpenEncounterByTag als Picked.
+	// -> Speichere es als CurrentEncounterEvent (TObjectPtr<UStoneEventData>)
+	if (!CurrentEncounterEvent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] GetCurrentEncounterChoices: CurrentEncounterEvent null. Owner=%s"), *GetNameSafe(GetOwner()));
+		return;
+	}
+
+	ActionRuntime->GetResolvedChoices(CurrentEncounterEvent, OutResolved);
+}
+bool UStoneSettlerActionComponent::ApplyEncounterChoice(int32 ChoiceIndex)
+{
+	if (!bEncounterOpen)
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("[SettlerAction] ApplyEncounterChoice ignored: no encounter open. Owner=%s"), *GetNameSafe(GetOwner()));
+		return false;
+	}
+
+	if (!ActionRuntime || !CurrentEncounterEvent)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[SettlerAction] ApplyEncounterChoice failed: Runtime/Event missing. Owner=%s"), *GetNameSafe(GetOwner()));
+		return false;
+	}
+
+	const bool bApplied = ActionRuntime->ApplyChoice(CurrentEncounterEvent, ChoiceIndex);
+	if (!bApplied)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] ApplyEncounterChoice: choice rejected. Owner=%s Choice=%d"),
+			*GetNameSafe(GetOwner()), ChoiceIndex);
+		return false;
+	}
+
+	// Close encounter (and allow timeline to continue)
+	NotifyEncounterClosed(/*bAborted*/ false);
+
+	// Clear the current event pointer
+	CurrentEncounterEvent = nullptr;
+
+	OnActionStateChanged.Broadcast();
+	return true;
+}

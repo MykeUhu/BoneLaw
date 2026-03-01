@@ -54,18 +54,6 @@ UStoneOverlayWidgetController* UStoneAbilitySystemLibrary::GetOverlayWidgetContr
 	return nullptr;
 }
 
-UStoneStatsWidgetController* UStoneAbilitySystemLibrary::GetStatsWidgetController(const UObject* WorldContextObject)
-{
-	FWidgetControllerParams WCParams;
-	AStoneHUD* StoneHUD = nullptr;
-	if (MakeWidgetControllerParams(WorldContextObject, WCParams, StoneHUD))
-	{
-		return StoneHUD->GetStatsWidgetController(WCParams);
-	}
-	return nullptr;
-}
-
-
 void UStoneAbilitySystemLibrary::InitializeDefaultAttributes(const UObject* WorldContextObject, EStoneCharacterClass CharacterClass, float Level, UAbilitySystemComponent* ASC)
 {
 	AActor* AvatarActor = ASC->GetAvatarActor();

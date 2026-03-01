@@ -9,6 +9,8 @@
 #include "GameFramework/PlayerStart.h"
 
 // Project
+#include "AbilitySystemComponent.h"
+#include "GameplayTagsManager.h"
 #include "Core/Character/StoneBaseChar.h"
 #include "Core/Character/StoneSettlerChar.h"
 #include "Core/GameMode/StoneGameModeBase.h"
@@ -210,16 +212,20 @@ TArray<FSavedSettler> UStoneRosterSubsystem::GatherRosterState() const
 	{
 		if (State.SpawnedPawn.IsValid())
 		{
-			FSavedSettler Saved = State.Data; // SSOT
-			Saved.LastKnownTransform = State.SpawnedPawn->GetActorTransform();
+			// Full gather: transform + live attributes + loose tags via pawn API.
+			// Cast away const only for the pawn pointer - GatherSettlerStateFromPawn reads, never writes.
+			AStoneBaseChar* PawnPtr = State.SpawnedPawn.Get();
+			FSavedSettler Saved = GatherSettlerStateFromPawn(State.SettlerId, PawnPtr);
 			Out.Add(Saved);
 		}
 		else
 		{
+			// Pawn not spawned: keep last known data as-is (offline settler).
 			Out.Add(State.Data);
 		}
 	}
 
+	UE_LOG(LogTemp, Log, TEXT("[StoneRoster] GatherRosterState: gathered %d settlers."), Out.Num());
 	return Out;
 }
 
@@ -339,12 +345,57 @@ void UStoneRosterSubsystem::ApplySettlerStateToPawn(AStoneBaseChar* Pawn, const 
 
 FSavedSettler UStoneRosterSubsystem::GatherSettlerStateFromPawn(const FGuid& SettlerId, AStoneBaseChar* Pawn) const
 {
-	FSavedSettler Gathered;
+	// Start from the current SSOT data so DisplayName, SettlerTags, Assignment etc. are preserved.
+	const FSettlerRuntimeState* State = FindSettlerState(SettlerId);
+	FSavedSettler Gathered = State ? State->Data : FSavedSettler();
 	Gathered.SettlerId = SettlerId;
-	if (!Pawn) return Gathered;
 
-	// DisplayName NICHT von Pawn->GetName()!
+	if (!Pawn)
+	{
+		return Gathered;
+	}
+
+	// Transform: always read live from pawn.
 	Gathered.LastKnownTransform = Pawn->GetActorTransform();
+
+	// Persisted tags: NEVER persist GE/transient tags.
+	// We only persist stable "State.*" + "Status.*" tags for the settler.
+	if (UAbilitySystemComponent* ASC = Pawn->GetAbilitySystemComponent())
+	{
+		static const FGameplayTag StateRoot  = UGameplayTagsManager::Get().RequestGameplayTag(FName("State"),  /*ErrorIfNotFound*/ false);
+		static const FGameplayTag StatusRoot = UGameplayTagsManager::Get().RequestGameplayTag(FName("Status"), /*ErrorIfNotFound*/ false);
+
+		FGameplayTagContainer OwnedTags;
+		ASC->GetOwnedGameplayTags(OwnedTags);
+
+		FGameplayTagContainer Persisted;
+		for (const FGameplayTag& Tag : OwnedTags)
+		{
+			if ((StateRoot.IsValid()  && Tag.MatchesTag(StateRoot)) ||
+				(StatusRoot.IsValid() && Tag.MatchesTag(StatusRoot)))
+			{
+				Persisted.AddTag(Tag);
+			}
+		}
+
+		Gathered.SettlerTags = Persisted;
+
+		UE_LOG(LogTemp, Log, TEXT("[StoneRoster] GatherSettlerStateFromPawn: Owned=%d Persisted(State/Status)=%d Pawn=%s"),
+			OwnedTags.Num(), Persisted.Num(), *GetNameSafe(Pawn));
+	}
+
+	// Attributes: use the pawn's own gather function (tag-driven, covers all attribute groups).
+	if (AStoneSettlerChar* SettlerPawn = Cast<AStoneSettlerChar>(Pawn))
+	{
+		Gathered.Attributes = SettlerPawn->GatherCurrentAttributes();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[StoneRoster] GatherSettlerStateFromPawn: SettlerId=%s Tags=%d Attributes=%d Pawn=%s"),
+		*SettlerId.ToString(EGuidFormats::DigitsWithHyphensLower),
+		Gathered.SettlerTags.Num(),
+		Gathered.Attributes.Num(),
+		*GetNameSafe(Pawn));
+
 	return Gathered;
 }
 

@@ -12,7 +12,6 @@ class AStoneBaseChar;
 class UAbilitySystemComponent;
 class UAttributeInfo;
 class UStoneSettlerActionComponent;
-class UStoneRunSubsystem;
 class UStoneEventData;
 class UStoneRosterSubsystem;
 
@@ -49,13 +48,13 @@ public:
 	void HandleActionProgressChanged(float Progress01);
 
 	UFUNCTION()
-	void HandleRunEventChanged(const UStoneEventData* Event);
-	
-	UPROPERTY(Transient)
-	TObjectPtr<UStoneSettlerActionComponent> BoundActionComp;
+	void HandleEncounterOpened(const UStoneEventData* Event);
+
+	UFUNCTION()
+	void HandleEncounterClosed(bool bAborted);
 
 	UPROPERTY(Transient)
-	TObjectPtr<UStoneRunSubsystem> BoundRun;
+	TObjectPtr<UStoneSettlerActionComponent> BoundActionComp;
 
 protected:
 	virtual void BeginDestroy() override;

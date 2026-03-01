@@ -55,10 +55,4 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<UStoneOverlayWidgetController> OverlayWidgetControllerClass;
-
-	UPROPERTY()
-	TObjectPtr<UStoneStatsWidgetController> StatsWidgetController;
-
-	UPROPERTY(EditAnywhere)
-	TSubclassOf<UStoneStatsWidgetController> StatsWidgetControllerClass;
 };

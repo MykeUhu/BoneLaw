@@ -73,11 +73,8 @@ public:
 	UFUNCTION(BlueprintPure, Category="Stone|UI")
 	UStoneRunSubsystem* GetRunSubsystem() const;
 
-	UFUNCTION(BlueprintCallable, Category="Stone|UI")
-	void GetResolvedChoices(TArray<FStoneChoiceResolved>& OutChoices) const;
-
 private:
-	// Cached RunSubsystem (lazy-loaded like Aura pattern)
+	// Cached RunSubsystem
 	UPROPERTY()
 	mutable TObjectPtr<UStoneRunSubsystem> CachedRunSubsystem;
 

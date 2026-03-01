@@ -12,7 +12,7 @@ void UStoneOverlayWidgetController::BroadcastInitialValues()
 	if (UStoneRunSubsystem* RunSS = GetRunSubsystem())
 	{
 		HandleSnapshotChanged(RunSS->GetSnapshot());
-		HandleEventChanged(RunSS->GetCurrentEvent());
+		//HandleEventChanged(RunSS->GetCurrentEvent());
 	}
 
 	// GAS: immer (Aura pattern)
@@ -44,9 +44,7 @@ void UStoneOverlayWidgetController::BindCallbacksToDependencies()
 	{
 		RunSS->OnSnapshotChanged.RemoveDynamic(this, &UStoneOverlayWidgetController::HandleSnapshotChanged);
 		RunSS->OnSnapshotChanged.AddDynamic(this, &UStoneOverlayWidgetController::HandleSnapshotChanged);
-
-		RunSS->OnEventChanged.RemoveDynamic(this, &UStoneOverlayWidgetController::HandleEventChanged);
-		RunSS->OnEventChanged.AddDynamic(this, &UStoneOverlayWidgetController::HandleEventChanged);
+		
 	}
 
 	// GAS: immer (Aura pattern)
@@ -151,13 +149,4 @@ void UStoneOverlayWidgetController::HandleSnapshotChanged(const FStoneSnapshot& 
 void UStoneOverlayWidgetController::HandleEventChanged(const UStoneEventData* Event)
 {
 	OnOverlayEventChanged.Broadcast(Event);
-}
-
-void UStoneOverlayWidgetController::GetResolvedChoices(TArray<FStoneChoiceResolved>& OutChoices) const
-{
-	OutChoices.Reset();
-	UStoneRunSubsystem* RunSS = GetRunSubsystem();
-	if (!RunSS) return;
-
-	RunSS->GetResolvedChoices(OutChoices);
 }
