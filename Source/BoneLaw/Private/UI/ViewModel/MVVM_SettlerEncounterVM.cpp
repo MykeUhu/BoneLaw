@@ -35,21 +35,34 @@ void UMVVM_SettlerEncounterVM::BindToEncounter(AStoneSettlerChar* SettlerActor, 
 		BoundActionComp->OnEncounterClosed.AddDynamic(this, &UMVVM_SettlerEncounterVM::HandleEncounterClosed);
 	}
 
-	// Identity (SSOT via RosterSubsystem) – same idea as SlotDetails
+	// Identity (SSOT): prefer RosterSubsystem display name.
+	// MP fallback: if roster not populated on client, use replicated pawn identity.
+	FString ResolvedName;
+
 	if (UWorld* World = SettlerActor->GetWorld())
 	{
 		if (UStoneRosterSubsystem* Roster = World->GetSubsystem<UStoneRosterSubsystem>())
 		{
-			// Wenn du eine direkte GUID am Settler hast -> HIER verwenden.
-			// (Ich lasse es neutral, weil ich nicht raten will.)
-			// Fallback:
-			SetSettlerName(SettlerActor->GetActorLabel());
-		}
-		else
-		{
-			SetSettlerName(SettlerActor->GetActorLabel());
+			ResolvedName = Roster->GetSettlerDisplayNameByPawn(SettlerActor);
+
+			// If roster doesn’t know this pawn yet, try pawn replicated identity
+			if (ResolvedName.IsEmpty())
+			{
+				if (const AStoneSettlerChar* SettlerPawn = Cast<AStoneSettlerChar>(SettlerActor))
+				{
+					ResolvedName = SettlerPawn->GetRosterDisplayName();
+				}
+			}
 		}
 	}
+
+	// Final fallback (editor/dev only)
+	if (ResolvedName.IsEmpty())
+	{
+		ResolvedName = SettlerActor->GetActorLabel();
+	}
+
+	SetSettlerName(ResolvedName);
 
 	// Push MVVM fields (correct types!)
 	SetEventTitle(EventData->Title.ToString());

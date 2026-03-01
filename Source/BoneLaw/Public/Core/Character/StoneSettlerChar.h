@@ -59,6 +59,18 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Stone|GAS|State")
 	void SetState_TravelReturning();
+	
+	UFUNCTION(BlueprintPure, Category="Stone|Roster")
+	FGuid GetRosterSettlerId() const { return RosterSettlerId; }
+
+	UFUNCTION(BlueprintPure, Category="Stone|Roster")
+	FString GetRosterDisplayName() const { return RosterDisplayName; }
+
+	/** Server sets identity after spawn; replicated to clients for UI fallback. */
+	UFUNCTION(BlueprintCallable, Category="Stone|Roster")
+	void SetRosterIdentity(const FGuid& InSettlerId, const FString& InDisplayName);
+	
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
 	virtual void BeginPlay() override;
@@ -124,5 +136,11 @@ protected:
 	// Internal helpers
 	FActiveGameplayEffectHandle ApplyStateEffect(TSubclassOf<UGameplayEffect> EffectClass, float EffectLevel = 1.f);
 	void RemoveStateEffect(FActiveGameplayEffectHandle& Handle);
+	
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category="Stone|Roster", meta=(AllowPrivateAccess="true"))
+	FGuid RosterSettlerId;
+
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category="Stone|Roster", meta=(AllowPrivateAccess="true"))
+	FString RosterDisplayName;
 	
 };

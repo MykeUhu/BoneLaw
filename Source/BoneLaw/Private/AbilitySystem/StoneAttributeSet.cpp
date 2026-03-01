@@ -11,6 +11,7 @@
 
 UStoneAttributeSet::UStoneAttributeSet()
 {
+	FStoneGameplayTags::InitializeNativeGameplayTags();
 	const FStoneGameplayTags& GameplayTags = FStoneGameplayTags::Get();
 
 	/* Primary Attributes */
@@ -68,6 +69,10 @@ UStoneAttributeSet::UStoneAttributeSet()
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_SpiritualPractical, GetWorldlineSpiritualPracticalAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_XenoOpenFear, GetWorldlineXenoOpenFearAttribute);
 	TagsToAttributes.Add(GameplayTags.Attributes_Worldline_TabooLooseStrict, GetWorldlineTabooLooseStrictAttribute);
+	
+	UE_LOG(LogTemp, Log, TEXT("[StoneAttributeSet] TagsToAttributes=%d FoodKeyValid=%d"),
+    TagsToAttributes.Num(),
+    GameplayTags.Attributes_Vital_Food.IsValid() ? 1 : 0);
 }
 
 bool UStoneAttributeSet::GetAttributeFromTag(const FGameplayTag& Tag, FGameplayAttribute& OutAttribute) const

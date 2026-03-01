@@ -40,8 +40,7 @@ void UMVVM_SettlerSlotDetails::BindToSettler(const FGuid& SettlerId, AStoneSettl
 		{
 			if (UStoneRosterSubsystem* Roster = World->GetSubsystem<UStoneRosterSubsystem>())
 			{
-				const FSavedSettler Info = Roster->GetSettlerInfo(SettlerId);
-				SetSettlerName(Info.DisplayName);
+				SetSettlerName(Roster->GetSettlerDisplayNameByGuid(SettlerId));
 			}
 			else
 			{

@@ -64,26 +64,33 @@ UAbilitySystemComponent* UStoneSettlerActionComponent::GetASC() const
 
 bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* ActionDef)
 {
-	// If same action already running -> do nothing (prevents BT spam restart)
-	if (bActionRunning && CurrentDef == ActionDef)
-	{
-		return true;
-	}
-
-	// If ANY action running and BT re-enters, decide: ignore OR fail.
-	// For your BT setup: ignore is safest.
-	if (bActionRunning && CurrentDef != nullptr)
-	{
-		UE_LOG(LogTemp, Verbose, TEXT("[SettlerAction] StartAction ignored: action already running. Owner=%s Current=%s New=%s"),
-			*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef), *GetNameSafe(ActionDef));
-		return false; // or true if you want “already running” treated as success
-	}
 	if (!ActionDef)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] StartAction failed: ActionDef is null. Owner=%s"), *GetNameSafe(GetOwner()));
 		return false;
 	}
 
+	// Same action already running -> idempotent success.
+	if (bActionRunning && CurrentDef == ActionDef)
+	{
+		UE_LOG(LogTemp, Verbose,
+			TEXT("[SettlerAction] StartAction: same action already running, returning true (idempotent). Owner=%s Def=%s"),
+			*GetNameSafe(GetOwner()), *GetNameSafe(ActionDef));
+		return true;
+	}
+
+	// Different action running -> interrupt & restart.
+	if (bActionRunning && CurrentDef != nullptr && CurrentDef != ActionDef)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[SettlerAction] StartAction: interrupting running action '%s' with new action '%s'. Owner=%s "
+				 "If this fires every tick, check BT decorator 'aborts both' on the Action.Running branch."),
+			*GetNameSafe(CurrentDef), *GetNameSafe(ActionDef), *GetNameSafe(GetOwner()));
+
+		StopCurrentAction(false);
+	}
+
+	// From here: clean start (covers 'no action running' and 'we just stopped old one')
 	StopCurrentAction(false);
 
 	CurrentDef = ActionDef;
@@ -134,7 +141,7 @@ bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* Actio
 		if (RNG.FRand() <= ActionDef->OutboundRandomChance01)
 		{
 			FStonePlannedEncounter Slot;
-			Slot.EventTag = GetLegRandomEventTag(EStoneActionPhase::Outbound);
+			Slot.EventTag = GetRandomActionTag(EStoneActionPhase::Outbound);
 			Slot.TriggerAtProgress01 = RNG.FRandRange(ActionDef->OutboundRandomAtMin01, ActionDef->OutboundRandomAtMax01);
 			Slot.bTriggered = false;
 			OutboundEncounterSlots.Add(Slot);
@@ -146,7 +153,7 @@ bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* Actio
 		if (RNG.FRand() <= ActionDef->ReturnRandomChance01)
 		{
 			FStonePlannedEncounter Slot;
-			Slot.EventTag = GetLegRandomEventTag(EStoneActionPhase::Return);
+			Slot.EventTag = GetRandomActionTag(EStoneActionPhase::Return);
 			Slot.TriggerAtProgress01 = RNG.FRandRange(ActionDef->ReturnRandomAtMin01, ActionDef->ReturnRandomAtMax01);
 			Slot.bTriggered = false;
 			ReturnEncounterSlots.Add(Slot);
@@ -461,36 +468,60 @@ void UStoneSettlerActionComponent::EnterPhase(EStoneActionPhase NewPhase)
 			*GetNameSafe(GetOwner()), (int32)NewPhase);
 	}
 
-	// Arrival encounter (per-settler) – no RunSubsystem.
+	const FStoneGameplayTags& T = FStoneGameplayTags::Get();
+
+	// Arrival encounter (per-settler).
+	// OpenEncounterByTag internally builds RequiredTags = {Action.Phase.Arrival, CurrentDef->ActionTag}
+	// so only events that have BOTH tags will match (e.g. EV_Forest_Arrival_* only fires for Forest actions).
 	if (Phase == EStoneActionPhase::Arrival)
 	{
-		// Minimal: use the ActionDef's ActionTag as the "context tag" for arrival events.
-		// Your EventData assets should include ActionDef.ActionTag in EventTags.
-		if (CurrentDef && CurrentDef->ActionTag.IsValid())
-		{
-			UE_LOG(LogTemp, Log, TEXT("[SettlerAction] Arrival -> opening encounter by ActionTag '%s'. Owner=%s Def=%s"),
-				*CurrentDef->ActionTag.ToString(), *GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef));
+		const FGameplayTag ArrivalPhaseTag = T.Action_Phase_Arrival;
 
-			OpenEncounterByTag(CurrentDef->ActionTag);
+		if (!ArrivalPhaseTag.IsValid())
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[SettlerAction] EnterPhase(Arrival): Action.Phase.Arrival is invalid. Check native tag registration."));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("[SettlerAction] Arrival phase -> opening encounter. PhaseTag='%s' ActionTag='%s' Owner=%s Def=%s"),
+				*ArrivalPhaseTag.ToString(),
+				CurrentDef ? *CurrentDef->ActionTag.ToString() : TEXT("none"),
+				*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef));
+
+			OpenEncounterByTag(ArrivalPhaseTag);
 		}
 	}
 
 	OnActionStateChanged.Broadcast();
 }
 
-FGameplayTag UStoneSettlerActionComponent::GetLegRandomEventTag(EStoneActionPhase InPhase) const
+FGameplayTag UStoneSettlerActionComponent::GetRandomActionTag(EStoneActionPhase InPhase) const
 {
-	if (!CurrentDef) return FGameplayTag();
+	// NOTE: despite the name, this returns the PHASE TAG for a given phase.
+	// The "random" part is that during pre-roll, each slot picks its own phase tag.
+	// The actual event selection (randomness) happens in OpenEncounterByTag using HasAll(ActionTag + PhaseTag).
+	// FStonePlannedEncounter::EventTag is therefore always a Phase tag, never a concrete event tag.
+	const FStoneGameplayTags& T = FStoneGameplayTags::Get();
 
-	if (CurrentDef->ActionTag.IsValid())
+	FGameplayTag Result;
+
+	switch (InPhase)
 	{
-		return CurrentDef->ActionTag;
+	case EStoneActionPhase::Outbound: Result = T.Action_Phase_Outbound; break;
+	case EStoneActionPhase::Arrival:  Result = T.Action_Phase_Arrival;  break;
+	case EStoneActionPhase::Return:   Result = T.Action_Phase_Return;   break;
+	default:                          Result = FGameplayTag();           break;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] GetLegRandomEventTag: Def has no ActionTag. No random encounters will trigger. Def=%s"),
-		*GetNameSafe(CurrentDef));
+	if (!Result.IsValid() && (InPhase == EStoneActionPhase::Outbound || InPhase == EStoneActionPhase::Arrival || InPhase == EStoneActionPhase::Return))
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[SettlerAction] GetRandomActionTag: PhaseTag invalid for Phase=%d. Check StoneGameplayTags::Action.Phase.* registration. Owner=%s Def=%s"),
+			(int32)InPhase, *GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef));
+	}
 
-	return FGameplayTag();
+	return Result;
 }
 
 EStoneActionAbortResult UStoneSettlerActionComponent::CheckAndConsumeAbortTags()
@@ -518,11 +549,11 @@ EStoneActionAbortResult UStoneSettlerActionComponent::CheckAndConsumeAbortTags()
 	return EStoneActionAbortResult::None;
 }
 
-void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag EventTag)
+void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag PhaseTag)
 {
-	if (!EventTag.IsValid())
+	if (!PhaseTag.IsValid())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] OpenEncounterByTag failed: EventTag invalid. Owner=%s"), *GetNameSafe(GetOwner()));
+		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] OpenEncounterByTag failed: PhaseTag invalid. Owner=%s"), *GetNameSafe(GetOwner()));
 		return;
 	}
 
@@ -530,6 +561,24 @@ void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag EventTag)
 	{
 		UE_LOG(LogTemp, Verbose, TEXT("[SettlerAction] OpenEncounterByTag ignored: encounter already open. Owner=%s"), *GetNameSafe(GetOwner()));
 		return;
+	}
+
+	// Build the required tag set: ActionTag (e.g. Action.Explore.Forest) + PhaseTag (e.g. Action.Phase.Outbound).
+	// Both must be present on an EventData asset for it to be eligible.
+	// This prevents e.g. a Forest Outbound encounter from matching Cave Outbound events.
+	FGameplayTagContainer RequiredTags;
+	RequiredTags.AddTag(PhaseTag);
+
+	if (CurrentDef && CurrentDef->ActionTag.IsValid())
+	{
+		RequiredTags.AddTag(CurrentDef->ActionTag);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[SettlerAction] OpenEncounterByTag: CurrentDef has no ActionTag - matching by PhaseTag only ('%s'). "
+			     "Encounters from ALL action types will be eligible. Owner=%s Def=%s"),
+			*PhaseTag.ToString(), *GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef));
 	}
 
 	UAssetManager& AM = UAssetManager::Get();
@@ -552,7 +601,6 @@ void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag EventTag)
 
 	for (const FPrimaryAssetId& Id : Ids)
 	{
-		// Resolve the asset path for the primary asset and load synchronously (demo-safe).
 		const FSoftObjectPath Path = AM.GetPrimaryAssetPath(Id);
 		if (!Path.IsValid())
 		{
@@ -567,7 +615,9 @@ void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag EventTag)
 			continue;
 		}
 
-		if (Event->EventTags.HasTagExact(EventTag))
+		// Match ALL required tags (ActionTag AND PhaseTag).
+		// HasAll returns true only if every tag in RequiredTags is present in Event->EventTags.
+		if (Event->EventTags.HasAll(RequiredTags))
 		{
 			Matching.Add(Event);
 		}
@@ -575,8 +625,10 @@ void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag EventTag)
 
 	if (Matching.Num() == 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] No UStoneEventData found for tag '%s'. Owner=%s"),
-			*EventTag.ToString(), *GetNameSafe(GetOwner()));
+		UE_LOG(LogTemp, Warning,
+			TEXT("[SettlerAction] No UStoneEventData found matching RequiredTags='%s'. "
+			     "Check that EventData assets have BOTH ActionTag AND PhaseTag in EventTags. Owner=%s Def=%s"),
+			*RequiredTags.ToStringSimple(), *GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef));
 		return;
 	}
 
@@ -589,19 +641,19 @@ void UStoneSettlerActionComponent::OpenEncounterByTag(FGameplayTag EventTag)
 	if (!OnEncounterOpened.IsBound())
 	{
 		UE_LOG(LogTemp, Warning,
-			TEXT("[SettlerAction] Encounter '%s' would open for Tag='%s' but OnEncounterOpened has no listeners. "
+			TEXT("[SettlerAction] Encounter '%s' would open for RequiredTags='%s' but OnEncounterOpened has no listeners. "
 			     "Auto-resolving to prevent action stall. Owner=%s"),
-			*GetNameSafe(Picked), *EventTag.ToString(), *GetNameSafe(GetOwner()));
-		// Do NOT set bEncounterOpen - there is nothing to resolve, just skip silently.
+			*GetNameSafe(Picked), *RequiredTags.ToStringSimple(), *GetNameSafe(GetOwner()));
 		return;
 	}
 
-	CurrentEncounterTag = EventTag;
+	CurrentEncounterTag = PhaseTag;
 	bLastEncounterAborted = false;
 	bEncounterOpen = true;
 
-	UE_LOG(LogTemp, Log, TEXT("[SettlerAction] Encounter opened: Tag='%s' Picked='%s' Owner=%s"),
-		*EventTag.ToString(), *GetNameSafe(Picked), *GetNameSafe(GetOwner()));
+	UE_LOG(LogTemp, Log,
+		TEXT("[SettlerAction] Encounter opened: RequiredTags='%s' Picked='%s' Owner=%s"),
+		*RequiredTags.ToStringSimple(), *GetNameSafe(Picked), *GetNameSafe(GetOwner()));
 
 	OnEncounterOpened.Broadcast(Picked);
 }

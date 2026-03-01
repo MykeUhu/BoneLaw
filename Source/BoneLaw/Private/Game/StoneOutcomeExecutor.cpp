@@ -20,6 +20,9 @@ namespace StoneOutcome
 		{
 			return false;
 		}
+		
+		UE_LOG(LogTemp, Warning, TEXT("[StoneOutcomeExecutor] Resolve '%s' DefaultsMap=%d"),
+			*AttributeTag.ToString(), Defaults->TagsToAttributes.Num());
 
 		const TStaticFuncPtr<FGameplayAttribute()>* Fn = Defaults->TagsToAttributes.Find(AttributeTag);
 		if (!Fn)

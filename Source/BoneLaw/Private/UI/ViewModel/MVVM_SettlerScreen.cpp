@@ -44,8 +44,7 @@ FString UMVVM_SettlerScreen::GetSettlerNameByGuid(const FGuid& SettlerId) const
 		return TEXT("(No Roster)");
 	}
 
-	const FSavedSettler Info = CachedRoster->GetSettlerInfo(SettlerId);
-	return Info.DisplayName;
+	return CachedRoster->GetSettlerDisplayNameByGuid(SettlerId);
 }
 
 

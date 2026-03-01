@@ -58,6 +58,9 @@ public:
 
     UPROPERTY(EditDefaultsOnly, Category="Common Class Defaults|Attributes")
     TSubclassOf<UGameplayEffect> VitalAttributes;
+    
+    UPROPERTY(EditDefaultsOnly, Category="Common Class Defaults|Attributes")
+    TSubclassOf<UGameplayEffect> VitalDrainAttributes;
 
     // Your extra groups (still Aura pattern: common GE blocks)
     UPROPERTY(EditDefaultsOnly, Category="Common Class Defaults|Attributes")

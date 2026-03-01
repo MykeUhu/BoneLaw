@@ -19,6 +19,7 @@ struct FStoneGameplayTags
 public:
 	static const FStoneGameplayTags& Get() { return GameplayTags; }
 	static void InitializeNativeGameplayTags();
+	static bool AreNativeGameplayTagsInitialized();
 
 	// =====================================================================
 	// ABILITIES (GAS/UI meta)
@@ -82,6 +83,15 @@ public:
 
 	// High-level action types (used to select logic/pools)
 	FGameplayTag Action_Explore_Area;
+	FGameplayTag Action_Explore_Forest;
+	
+	// Phases in Action
+	FGameplayTag Action_Phase_Outbound;
+	FGameplayTag Action_Phase_Arrival;
+	FGameplayTag Action_Phase_Return;
+	
+	// Guards
+	FGameplayTag Action_Guard_ArrivalFired;
 
 	// --- Abort / flow control (set by Outcome on settler ASC, polled by ActionComponent) ---
 	// Action.Abort            -> stop the action immediately as a failure

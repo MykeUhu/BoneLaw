@@ -6,8 +6,21 @@
 
 FStoneGameplayTags FStoneGameplayTags::GameplayTags;
 
+static bool GStoneTagsInitialized = false;
+
+bool FStoneGameplayTags::AreNativeGameplayTagsInitialized()
+{
+	return GStoneTagsInitialized;
+}
+
 void FStoneGameplayTags::InitializeNativeGameplayTags()
 {
+	if (GStoneTagsInitialized)
+	{
+		return;
+	}
+	GStoneTagsInitialized = true;
+	
 	// =========================
 	// Abilities (GAS/UI meta)
 	// =========================
@@ -153,12 +166,41 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 	// =========================
 	// Action Tags (Action System - separate from Events)
 	// =========================
+
+	// High-level action types (context)
 	GameplayTags.Action_Explore_Area = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Action.Explore.Area"),
-		FString("Action: Explore an area")
+		FString("Action: Explore an area (generic explore action context)")
 	);
 
-	// Abort / flow-control tags (set by Outcomes, polled by ActionComponent each tick)
+	GameplayTags.Action_Explore_Forest = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Explore.Forest"),
+		FString("Action: Explore the forest (specific explore context)")
+	);
+
+	// Phases in Action (encounter pools)
+	GameplayTags.Action_Phase_Outbound = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Phase.Outbound"),
+		FString("Action phase: Outbound segment (on the way to the action start / entrance)")
+	);
+
+	GameplayTags.Action_Phase_Arrival = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Phase.Arrival"),
+		FString("Action phase: Arrival moment (transition into offscreen action / work begins)")
+	);
+
+	GameplayTags.Action_Phase_Return = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Phase.Return"),
+		FString("Action phase: Return segment (on the way back / after offscreen action)")
+	);
+
+	// Guards (one-shot flags)
+	GameplayTags.Action_Guard_ArrivalFired = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Action.Guard.ArrivalFired"),
+		FString("Action guard: Arrival encounter already fired for this action run (one-shot)")
+	);
+
+	// Abort / flow-control tags (set by Outcomes, polled by ActionComponent)
 	GameplayTags.Action_Abort = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Action.Abort"),
 		FString("Action: Abort the current action immediately (counted as failure). Set by Outcome, cleared by ActionComponent.")
@@ -166,9 +208,9 @@ void FStoneGameplayTags::InitializeNativeGameplayTags()
 
 	GameplayTags.Action_ReturnImmediately = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Action.ReturnImmediately"),
-		FString("Action: Skip remaining outbound/arrival work and jump to the Return phase. Set by Outcome, cleared by ActionComponent.")
+		FString("Action: Skip remaining outbound/arrival and jump straight to Return phase. Set by Outcome, cleared by ActionComponent.")
 	);
-	
+		
 	// =========================
 	// Tags For EventArrival and Exit for BP
 	// =========================

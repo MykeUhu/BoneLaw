@@ -76,6 +76,16 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category="Stone|Roster")
 	FStoneSettlerAssignmentChanged OnSettlerAssignmentChanged;
+	
+	UFUNCTION(BlueprintPure, Category="Stone|Roster")
+	FGuid GetSettlerIdByPawn(const AStoneBaseChar* Pawn) const;
+
+	UFUNCTION(BlueprintPure, Category="Stone|Roster")
+	FString GetSettlerDisplayNameByGuid(const FGuid& SettlerId) const;
+
+	UFUNCTION(BlueprintPure, Category="Stone|Roster")
+	FString GetSettlerDisplayNameByPawn(const AStoneBaseChar* Pawn) const;
+	
 
 private:
 	struct FSettlerRuntimeState

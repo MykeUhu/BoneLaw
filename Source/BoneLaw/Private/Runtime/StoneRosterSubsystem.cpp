@@ -2,6 +2,7 @@
 
 #include "Runtime/StoneRosterSubsystem.h"
 
+#include "Core/Character/StoneSettlerChar.h"
 // Engine
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -81,6 +82,12 @@ AStoneBaseChar* UStoneRosterSubsystem::GetOrSpawnSettlerPawn(const FGuid& Settle
 	if (NewPawn)
 	{
 		State->SpawnedPawn = NewPawn;
+	}
+	
+	if (AStoneSettlerChar* SettlerPawn = Cast<AStoneSettlerChar>(NewPawn))
+	{
+		// MP-friendly: replicate identity so clients can display name even if roster isn’t locally populated.
+		SettlerPawn->SetRosterIdentity(SettlerId, State->Data.DisplayName);
 	}
 
 	return NewPawn;
@@ -219,6 +226,53 @@ TArray<FSavedSettler> UStoneRosterSubsystem::GatherRosterState() const
 void UStoneRosterSubsystem::ApplyRosterState(const TArray<FSavedSettler>& SavedSettlers)
 {
 	InitializeRoster(SavedSettlers);
+}
+
+FGuid UStoneRosterSubsystem::GetSettlerIdByPawn(const AStoneBaseChar* Pawn) const
+{
+	if (!Pawn)
+	{
+		return FGuid();
+	}
+
+	for (const FSettlerRuntimeState& State : SettlerStates)
+	{
+		if (State.SpawnedPawn.IsValid() && State.SpawnedPawn.Get() == Pawn)
+		{
+			return State.SettlerId;
+		}
+	}
+
+	return FGuid();
+}
+
+FString UStoneRosterSubsystem::GetSettlerDisplayNameByGuid(const FGuid& SettlerId) const
+{
+	const FSettlerRuntimeState* State = FindSettlerState(SettlerId);
+	if (!State)
+	{
+		return FString();
+	}
+
+	return State->Data.DisplayName;
+}
+
+FString UStoneRosterSubsystem::GetSettlerDisplayNameByPawn(const AStoneBaseChar* Pawn) const
+{
+	if (!Pawn)
+	{
+		return FString();
+	}
+
+	for (const FSettlerRuntimeState& State : SettlerStates)
+	{
+		if (State.SpawnedPawn.IsValid() && State.SpawnedPawn.Get() == Pawn)
+		{
+			return State.Data.DisplayName;
+		}
+	}
+
+	return FString();
 }
 
 UStoneRosterSubsystem::FSettlerRuntimeState* UStoneRosterSubsystem::FindSettlerState(const FGuid& SettlerId)

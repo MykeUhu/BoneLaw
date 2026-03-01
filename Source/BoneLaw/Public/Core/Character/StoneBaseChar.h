@@ -42,7 +42,7 @@ public:
 	FOnASCRegistered OnAscRegistered;
 	
 	void SetCharacterClass(EStoneCharacterClass InClass) { CharacterClass = InClass; }
-
+	
 protected:
 	UPROPERTY()
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
@@ -63,7 +63,10 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS|Defaults")
 	TSubclassOf<UGameplayEffect> DefaultVitalAttributes;
-
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS|Defaults")
+	TSubclassOf<UGameplayEffect> DefaultVitalDrainAttributes;
+	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS|Defaults")
 	TSubclassOf<UGameplayEffect> DefaultCultureAttributes;
 

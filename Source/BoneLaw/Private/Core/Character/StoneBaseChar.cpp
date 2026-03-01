@@ -79,6 +79,7 @@ void AStoneBaseChar::InitializeDefaultAttributes() const
 	ApplyEffectToSelf(DefaultPrimaryAttributes, 1.f);
 	ApplyEffectToSelf(DefaultSecondaryAttributes, 1.f);
 	ApplyEffectToSelf(DefaultVitalAttributes, 1.f);
+	ApplyEffectToSelf(DefaultVitalDrainAttributes, 1.f);
 	ApplyEffectToSelf(DefaultCultureAttributes, 1.f);
 	ApplyEffectToSelf(DefaultKnowledgeAttributes, 1.f);
 	ApplyEffectToSelf(DefaultWorldlineAttributes, 1.f);

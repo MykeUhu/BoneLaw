@@ -88,6 +88,11 @@ void UStoneAbilitySystemLibrary::InitializeDefaultAttributes(const UObject* Worl
 	const FGameplayEffectSpecHandle VitalAttributesSpecHandle = ASC->MakeOutgoingSpec(CharacterClassInfo->VitalAttributes, Level, VitalAttributesContextHandle);
 	ASC->ApplyGameplayEffectSpecToSelf(*VitalAttributesSpecHandle.Data.Get());
 	
+	FGameplayEffectContextHandle VitalDrainAttributesContextHandle = ASC->MakeEffectContext();
+	VitalDrainAttributesContextHandle.AddSourceObject(AvatarActor);
+	const FGameplayEffectSpecHandle VitalDrainAttributesSpecHandle = ASC->MakeOutgoingSpec(CharacterClassInfo->VitalDrainAttributes, Level, VitalDrainAttributesContextHandle);
+	ASC->ApplyGameplayEffectSpecToSelf(*VitalDrainAttributesSpecHandle.Data.Get());
+	
 	FGameplayEffectContextHandle CultureAttributeContextHandle = ASC->MakeEffectContext();
 	CultureAttributeContextHandle.AddSourceObject(AvatarActor);
 	const FGameplayEffectSpecHandle CultureAttributesSpecHandle = ASC->MakeOutgoingSpec(CharacterClassInfo->CultureAttributes, Level, CultureAttributeContextHandle);

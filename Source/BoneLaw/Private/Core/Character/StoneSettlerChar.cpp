@@ -8,6 +8,7 @@
 #include "AI/StoneAIController.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "Net/UnrealNetwork.h"
 
 AStoneSettlerChar::AStoneSettlerChar()
 {
@@ -35,6 +36,25 @@ static const TCHAR* StoneRoleToString(const AActor* Actor)
 	case ROLE_SimulatedProxy:   return TEXT("SimulatedProxy");
 	default:                   return TEXT("None");
 	}
+}
+
+void AStoneSettlerChar::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AStoneSettlerChar, RosterSettlerId);
+	DOREPLIFETIME(AStoneSettlerChar, RosterDisplayName);
+}
+
+void AStoneSettlerChar::SetRosterIdentity(const FGuid& InSettlerId, const FString& InDisplayName)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	RosterSettlerId = InSettlerId;
+	RosterDisplayName = InDisplayName;
 }
 
 void AStoneSettlerChar::BeginPlay()

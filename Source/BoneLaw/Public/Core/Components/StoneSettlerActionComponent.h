@@ -152,7 +152,7 @@ private:
 	void EnterPhase(EStoneActionPhase NewPhase);
 
 	float ResolveActionSpeedMult() const;
-	FGameplayTag GetLegRandomEventTag(EStoneActionPhase InPhase) const;
+	FGameplayTag GetRandomActionTag(EStoneActionPhase InPhase) const;
 
 	/**
 	 * Checks if the settler ASC carries an Action.Abort or Action.ReturnImmediately tag.

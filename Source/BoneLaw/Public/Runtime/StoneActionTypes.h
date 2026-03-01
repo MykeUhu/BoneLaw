@@ -28,14 +28,23 @@ enum class EStoneActionAbortResult : uint8
 /**
  * A single pre-rolled encounter slot on a leg (Outbound or Return).
  * TriggerAtProgress01 is a normalized position along the leg (0.0 = start, 1.0 = end).
- * This is progress-based, NOT time-based, so speedup/slowdown has no effect.
+ * This is progress-based, NOT time-based, so time manipulation (speedup/slowdown) has no effect.
+ *
+ * EventTag is always a PHASE tag (e.g. Action.Phase.Outbound).
+ * The actual event selection happens in OpenEncounterByTag(), which builds
+ * RequiredTags = {EventTag (Phase), CurrentDef->ActionTag (context)} and uses HasAll() to match.
+ * This ensures e.g. a Forest Outbound slot only picks from Forest-specific Outbound events.
  */
 USTRUCT(BlueprintType)
 struct FStonePlannedEncounter
 {
 	GENERATED_BODY()
 
-	/** Which event tag to queue when this slot fires. */
+	/**
+	 * Phase tag for this slot (e.g. Action.Phase.Outbound).
+	 * Combined with the running action's ActionTag at trigger time to scope the event pool.
+	 * Do NOT put a concrete event tag here - the random pick happens at trigger time via HasAll().
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stone|Action")
 	FGameplayTag EventTag;
 

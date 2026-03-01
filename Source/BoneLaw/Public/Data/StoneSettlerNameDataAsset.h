@@ -8,7 +8,7 @@
 
 /**
  * DataAsset for settler name generation (replaces hardcoded arrays)
- * Supports two-part names: FirstName + optional Title
+ * Supports two-part names: FirstName + optional SecondName
  * Example: "Ugga" or "Ugga Stonefist"
  */
 UCLASS(BlueprintType)
@@ -21,13 +21,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Names")
 	TArray<FString> FirstNames;
 
-	/** Optional pool of titles/epithets (e.g. Stonefist, Firekeeper, Hunter). */
+	/** Optional pool of SecondNames/epithets (e.g. Stonefist, Firekeeper, Hunter). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Names")
-	TArray<FString> Titles;
+	TArray<FString> SecondNames;
 
-	/** If true, generates "FirstName Title" (e.g. "Ugga Stonefist"). */
+	/** If true, generates "FirstName SecondName" (e.g. "Ugga Stonefist"). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Names")
-	bool bUseTitles = false;
+	bool bUseSecondName = false;
 
 	/**
 	 * Generate a random settler name from the configured pools.
