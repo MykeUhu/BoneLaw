@@ -96,6 +96,13 @@ protected:
 	/** Ensures we only apply saved state once per spawn unless explicitly called again. */
 	bool bDidApplySavedState = false;
 
+	/** If ApplySavedState is called before possession/ActorInfo is ready, we defer it until InitAbilityActorInfo. */
+	UPROPERTY(Transient)
+	bool bHasDeferredSavedState = false;
+
+	UPROPERTY(Transient)
+	FSavedSettler DeferredSavedState;
+
 	/** Optional: Level used for default-attribute init */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Stone|GAS")
 	int32 Level = 1;

@@ -5,6 +5,7 @@
 #include "GameplayTagContainer.h"
 #include "Runtime/StoneActionRuntime.h"
 #include "Runtime/StoneActionTypes.h"
+#include "Data/StoneTypes.h"
 // Defines FStoneChoiceResolved used by encounter UI APIs
 #include "Game/Events/StoneEventResolver.h"
 #include "StoneSettlerActionComponent.generated.h"
@@ -167,6 +168,15 @@ public:
 	/** Applies a choice to the currently open encounter (OutcomeExecutor etc.) */
 	UFUNCTION(BlueprintCallable, Category="Stone|Action|Encounter")
 	bool ApplyEncounterChoice(int32 ChoiceIndex);
+	
+	UFUNCTION(BlueprintCallable, Category="Stone|Action")
+	void AbortAndResetForLoad();
+	
+	/** Build a save snapshot of the currently running action (SSOT). */
+	void BuildSavedActionState(FSavedSettlerActionState& OutState) const;
+
+	/** Restore from save snapshot. Returns true if a running action was restored. */
+	bool RestoreFromSavedActionState(const FSavedSettlerActionState& InState);
 
 private:
 	void StopInternal(bool bSuccess, bool bForceReturnHomeEvent);
@@ -227,4 +237,7 @@ private:
 	TArray<FStonePlannedEncounter> ReturnEncounterSlots;
 
 	FRandomStream RNG;
+	
+	// Deterministic seed for current action (saved/loaded)
+	int32 CurrentSeed = 0;
 };

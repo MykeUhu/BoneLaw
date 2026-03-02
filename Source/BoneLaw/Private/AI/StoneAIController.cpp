@@ -26,3 +26,20 @@ UStoneSettlerActionComponent* AStoneAIController::GetActionComponent() const
 	}
 	return Settler->GetActionComponent();
 }
+
+void AStoneAIController::ResetActionBlackboardKeys()
+{
+	UBlackboardComponent* BB = GetBlackboardComponent();
+	if (!BB)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StoneAIController] ResetActionBlackboardKeys: No BlackboardComponent. Ctrl=%s"), *GetNameSafe(this));
+		return;
+	}
+
+	BB->ClearValue(BBKey_ActionDef);
+	BB->ClearValue(BBKey_TargetActor);
+	BB->ClearValue(BBKey_TravelLocation);
+	BB->ClearValue(BBKey_RandomWanderLocation);
+	BB->ClearValue(BBKey_HomeLocation);
+	BB->ClearValue(BBKey_TravelState);
+}

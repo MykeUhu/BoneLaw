@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "StoneGameModeBase.h"
@@ -6,7 +6,9 @@
 
 /**
  * GameMode for actual gameplay.
- * Handles settler bootstrap, roster initialization, and pawn spawn.
+ * - Bootstraps the settler roster (creates a starter settler on new game).
+ * - Spawns all settler pawns and binds autosave to OnActionFinishedNative.
+ * - After every completed settler action SaveGameplayState() is called automatically.
  */
 UCLASS()
 class BONELAW_API AStoneGameplayGameMode : public AStoneGameModeBase

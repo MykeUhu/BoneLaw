@@ -40,27 +40,23 @@ UAbilitySystemComponent* UStoneSettlerActionComponent::GetASC() const
 	const AActor* OwnerActor = GetOwner();
 	if (!OwnerActor)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] GetASC failed: Owner is null."));
+		UE_LOG(LogTemp, Error, TEXT("[SettlerAction] GetASC: Owner is null."));
 		return nullptr;
 	}
 
-	// Best practice: prefer IAbilitySystemInterface
-	if (const IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(OwnerActor))
+	const IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(OwnerActor);
+	if (!ensureMsgf(ASI, TEXT("[SettlerAction] GetASC: Owner '%s' does not implement IAbilitySystemInterface."), *GetNameSafe(OwnerActor)))
 	{
-		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
-		{
-			return ASC;
-		}
+		return nullptr;
 	}
 
-	// Fallback: component search (keeps compatibility)
-	if (UAbilitySystemComponent* ASC = OwnerActor->FindComponentByClass<UAbilitySystemComponent>())
+	UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent();
+	if (!ensureMsgf(ASC, TEXT("[SettlerAction] GetASC: Owner '%s' returned null ASC."), *GetNameSafe(OwnerActor)))
 	{
-		return ASC;
+		return nullptr;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] GetASC failed: Owner '%s' has no ASC."), *OwnerActor->GetName());
-	return nullptr;
+	return ASC;
 }
 
 bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* ActionDef)
@@ -75,21 +71,20 @@ bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* Actio
 	// Same action already running -> idempotent success.
 	if (bActionRunning && CurrentDef == ActionDef)
 	{
-		UE_LOG(LogTemp, Verbose,
-			TEXT("[SettlerAction] StartAction: same action already running, returning true (idempotent). Owner=%s Def=%s"),
+		UE_LOG(LogTemp, Verbose, TEXT("[SettlerAction] StartAction ignored: already running. Owner=%s Def=%s"),
 			*GetNameSafe(GetOwner()), *GetNameSafe(ActionDef));
-		return true;
+		return false; // wichtig: verhindert “BT denkt success und läuft weiter”
 	}
 
 	// Different action running -> interrupt & restart.
-	if (bActionRunning && CurrentDef != nullptr && CurrentDef != ActionDef)
+	// If any action is running, stop it exactly once (clean state).
+	if (bActionRunning)
 	{
 		UE_LOG(LogTemp, Warning,
-			TEXT("[SettlerAction] StartAction: interrupting running action '%s' with new action '%s'. Owner=%s "
-				 "If this fires every tick, check BT decorator 'aborts both' on the Action.Running branch."),
+			TEXT("[SettlerAction] StartAction: stopping previous action '%s' before starting '%s'. Owner=%s"),
 			*GetNameSafe(CurrentDef), *GetNameSafe(ActionDef), *GetNameSafe(GetOwner()));
 
-		StopCurrentAction(false);
+		StopInternal(false, /*bForceReturnHomeEvent*/ false);
 	}
 
 	// From here: clean start
@@ -123,12 +118,12 @@ bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* Actio
 			return false;
 		}
 
-		const int32 Seed = RNG.RandRange(1, INT32_MAX);
+		CurrentSeed = RNG.RandRange(1, INT32_MAX);
 
-		if (!ActionRuntime->Init(ASC, Seed))
+		if (!ActionRuntime->Init(ASC, CurrentSeed))
 		{
 			UE_LOG(LogTemp, Error, TEXT("[SettlerAction] StartAction failed: ActionRuntime Init failed. Owner=%s Def=%s Seed=%d"),
-				*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef), Seed);
+				*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef), CurrentSeed);
 
 			ActionRuntime = nullptr;
 			StopInternal(false, false);
@@ -136,7 +131,7 @@ bool UStoneSettlerActionComponent::StartAction(UStoneActionDefinitionData* Actio
 		}
 
 		UE_LOG(LogTemp, Log, TEXT("[SettlerAction] ActionRuntime initialized. Owner=%s Def=%s Seed=%d"),
-			*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef), Seed);
+			*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef), CurrentSeed);
 	}
 
 	// Apply action-scoped tags (optional)
@@ -222,51 +217,50 @@ void UStoneSettlerActionComponent::StopCurrentAction(bool bForceReturnHomeEvent)
 
 void UStoneSettlerActionComponent::StopInternal(bool bSuccess, bool bForceReturnHomeEvent)
 {
+	// If nothing is running, still sanitize transient pointers (SSOT cleanup).
 	if (!bActionRunning)
 	{
-		// auch hier SSOT cleanup (falls jemand StopInternal aufruft ohne running)
 		ActionRuntime = nullptr;
 		CurrentEncounterEvent = nullptr;
+		bEncounterOpen = false;
+		CurrentEncounterTag = FGameplayTag();
+		AppliedStateTags.Reset();
 		return;
 	}
 
 	const TObjectPtr<UStoneActionDefinitionData> FinishedDef = CurrentDef;
 
+	// Stop ticking first
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(ActionTickHandle);
 	}
 
-	// Close encounter UI cleanly FIRST
-	NotifyEncounterClosed(bLastEncounterAborted);
+	// Close encounter once, cleanly
+	const bool bWasEncounterOpen = bEncounterOpen;
+	if (bWasEncounterOpen)
+	{
+		NotifyEncounterClosed(bLastEncounterAborted);
+	}
 
-	// Now it's safe to destroy runtime state
+	// Destroy runtime-only state
 	ActionRuntime = nullptr;
 	CurrentEncounterEvent = nullptr;
-		
-	// Optional: remove action-scoped tags we applied to the Settler ASC.
+
+	// Remove action-scoped tags we applied
 	if (AppliedStateTags.Num() > 0)
 	{
 		if (UAbilitySystemComponent* ASC = GetASC())
 		{
 			ASC->RemoveLooseGameplayTags(AppliedStateTags);
-
-			UE_LOG(LogTemp, Log, TEXT("[SettlerAction] Removed GrantedStateTags x%d from ASC. Owner=%s"),
-				AppliedStateTags.Num(), *GetNameSafe(GetOwner()));
 		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[SettlerAction] Could not remove GrantedStateTags: ASC is null. Owner=%s"),
-				*GetNameSafe(GetOwner()));
-		}
-
 		AppliedStateTags.Reset();
 	}
 
-	// Close encounter UI cleanly
-	NotifyEncounterClosed(bLastEncounterAborted);
-
+	// Reset action state
 	bActionRunning = false;
+	bReturnHomeQueued = false;
+
 	Phase = EStoneActionPhase::None;
 	CurrentDef = nullptr;
 
@@ -279,6 +273,10 @@ void UStoneSettlerActionComponent::StopInternal(bool bSuccess, bool bForceReturn
 
 	OutboundEncounterSlots.Reset();
 	ReturnEncounterSlots.Reset();
+
+	bEncounterOpen = false;
+	CurrentEncounterTag = FGameplayTag();
+	bLastEncounterAborted = false;
 
 	OnActionStateChanged.Broadcast();
 
@@ -734,3 +732,188 @@ bool UStoneSettlerActionComponent::ApplyEncounterChoice(int32 ChoiceIndex)
 	OnActionStateChanged.Broadcast();
 	return true;
 }
+
+void UStoneSettlerActionComponent::AbortAndResetForLoad()
+{
+	// Always stop timer
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ActionTickHandle);
+	}
+
+	// If encounter is open, close it once (aborted)
+	if (bEncounterOpen)
+	{
+		bLastEncounterAborted = true;
+		NotifyEncounterClosed(true);
+	}
+
+	// Remove any tags we applied (even if action flag got desynced)
+	if (AppliedStateTags.Num() > 0)
+	{
+		if (UAbilitySystemComponent* ASC = GetASC())
+		{
+			ASC->RemoveLooseGameplayTags(AppliedStateTags);
+		}
+		AppliedStateTags.Reset();
+	}
+
+	// Hard reset all runtime-only state
+	ActionRuntime = nullptr;
+	CurrentEncounterEvent = nullptr;
+
+	bActionRunning = false;
+	bReturnHomeQueued = false;
+
+	Phase = EStoneActionPhase::None;
+	CurrentDef = nullptr;
+
+	BaseDurationSeconds = 0.f;
+	OutboundSeconds = 0.f;
+	ArrivalSeconds = 0.f;
+	ReturnSeconds = 0.f;
+	PhaseElapsedBaseSeconds = 0.f;
+	TotalElapsedBaseSeconds = 0.f;
+
+	OutboundEncounterSlots.Reset();
+	ReturnEncounterSlots.Reset();
+
+	bEncounterOpen = false;
+	CurrentEncounterTag = FGameplayTag();
+	bLastEncounterAborted = false;
+
+	OnActionStateChanged.Broadcast();
+}
+
+void UStoneSettlerActionComponent::BuildSavedActionState(FSavedSettlerActionState& OutState) const
+{
+	OutState = FSavedSettlerActionState();
+
+	// Snapshot only when running
+	if (!bActionRunning || !CurrentDef)
+	{
+		return;
+	}
+
+	OutState.ActionDef = CurrentDef;
+	OutState.Seed = CurrentSeed;
+	OutState.Phase = Phase;
+	OutState.PhaseElapsed = PhaseElapsedBaseSeconds;
+	OutState.TotalElapsed = TotalElapsedBaseSeconds;
+
+	OutState.bEncounterOpen = bEncounterOpen;
+	OutState.CurrentEncounterEvent = CurrentEncounterEvent;
+
+	// Pre-rolled slots (already USTRUCT/SafeGame-ready)
+	OutState.OutboundSlots = OutboundEncounterSlots;
+	OutState.ReturnSlots = ReturnEncounterSlots;
+}
+
+bool UStoneSettlerActionComponent::RestoreFromSavedActionState(const FSavedSettlerActionState& InState)
+{
+	// Always clean any previous runtime/timer state
+	if (bActionRunning)
+	{
+		StopInternal(false, false);
+	}
+
+	if (InState.ActionDef.IsNull())
+	{
+		return false;
+	}
+
+	UStoneActionDefinitionData* LoadedDef = InState.ActionDef.LoadSynchronous();
+	if (!LoadedDef)
+	{
+		// No resume data
+		return false;
+	}
+
+	// Re-init SSOT fields
+	CurrentDef = LoadedDef;
+	bActionRunning = true;
+	bReturnHomeQueued = false;
+
+	CurrentSeed = (InState.Seed > 0) ? InState.Seed : 12345;
+	RNG.Initialize(CurrentSeed);
+
+	BaseDurationSeconds = FMath::Max(1.f, CurrentDef->BaseDurationSeconds);
+	OutboundSeconds = BaseDurationSeconds * CurrentDef->OutboundShare01;
+	ReturnSeconds   = BaseDurationSeconds * CurrentDef->ReturnShare01;
+	ArrivalSeconds  = FMath::Max(0.f, BaseDurationSeconds - OutboundSeconds - ReturnSeconds);
+
+	Phase = InState.Phase;
+	PhaseElapsedBaseSeconds = InState.PhaseElapsed;
+	TotalElapsedBaseSeconds = InState.TotalElapsed;
+
+	// Runtime
+	UAbilitySystemComponent* ASC = GetASC();
+	if (!ASC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[SettlerAction] RestoreFromSavedActionState failed: ASC is null. Owner=%s"), *GetNameSafe(GetOwner()));
+		AbortAndResetForLoad();
+		return false;
+	}
+
+	ActionRuntime = NewObject<UStoneActionRuntime>(this);
+	if (!ActionRuntime)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[SettlerAction] RestoreFromSavedActionState failed: could not create ActionRuntime. Owner=%s"), *GetNameSafe(GetOwner()));
+		AbortAndResetForLoad();
+		return false;
+	}
+
+	if (!ActionRuntime->Init(ASC, CurrentSeed))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[SettlerAction] RestoreFromSavedActionState failed: ActionRuntime Init failed. Owner=%s Def=%s Seed=%d"),
+			*GetNameSafe(GetOwner()), *GetNameSafe(CurrentDef), CurrentSeed);
+		AbortAndResetForLoad();
+		return false;
+	}
+
+	// Re-apply action-scoped tags (GrantedStateTags) exactly like StartAction.
+	AppliedStateTags = CurrentDef->GrantedStateTags;
+	if (AppliedStateTags.Num() > 0)
+	{
+		ASC->AddLooseGameplayTags(AppliedStateTags);
+	}
+
+	// Restore planned encounters
+	OutboundEncounterSlots = InState.OutboundSlots;
+	OutboundEncounterSlots.Sort([](const FStonePlannedEncounter& A, const FStonePlannedEncounter& B)
+	{
+		return A.TriggerAtProgress01 < B.TriggerAtProgress01;
+	});
+
+	ReturnEncounterSlots = InState.ReturnSlots;
+	ReturnEncounterSlots.Sort([](const FStonePlannedEncounter& A, const FStonePlannedEncounter& B)
+	{
+		return A.TriggerAtProgress01 < B.TriggerAtProgress01;
+	});
+
+	// Restore encounter open
+	bEncounterOpen = InState.bEncounterOpen;
+	CurrentEncounterEvent = nullptr;
+	if (bEncounterOpen && !InState.CurrentEncounterEvent.IsNull())
+	{
+		CurrentEncounterEvent = InState.CurrentEncounterEvent.LoadSynchronous();
+	}
+
+	// Restart tick
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(ActionTickHandle, this, &UStoneSettlerActionComponent::TickAction, kActionTickInterval, true);
+	}
+
+	OnActionStateChanged.Broadcast();
+
+	// If an encounter was open at save time, re-open UI deterministically
+	if (bEncounterOpen && CurrentEncounterEvent)
+	{
+		OnEncounterOpened.Broadcast(CurrentEncounterEvent);
+	}
+
+	return true;
+}
+
+

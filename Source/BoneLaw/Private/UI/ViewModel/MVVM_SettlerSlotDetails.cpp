@@ -1,4 +1,4 @@
-﻿// Copyright by MykeUhu
+// Copyright by MykeUhu
 
 #include "UI/ViewModel/MVVM_SettlerSlotDetails.h"
 
@@ -87,49 +87,18 @@ void UMVVM_SettlerSlotDetails::BindToSettler(const FGuid& SettlerId, AStoneSettl
 	// After binding BoundActionComp:
 	SetHasOpenEvent(BoundActionComp->IsEncounterOpen());
 
-	// Try immediate ASC
+	// Settler pawn-owned ASC is always initialized in PossessedBy, so it must be valid here.
+	// If for any reason it isn't yet (e.g. late spawn), fall back to the delegate.
 	if (UAbilitySystemComponent* ASC = BoundSettler->GetAbilitySystemComponent())
 	{
 		HandleASCRegistered(ASC);
 		return;
 	}
 
-	// ASC not ready yet -> wait for registration (Aura-like pattern)
+	// Fallback: ASC not ready yet (should not happen in normal flow) -> wait for registration.
+	UE_LOG(LogTemp, Warning, TEXT("[SettlerSlotDetails] BindToSettler: ASC not yet available on settler '%s'. Waiting for OnAscRegistered."),
+		*GetNameSafe(BoundSettler));
 	AscRegisteredHandle = BoundSettler->OnAscRegistered.AddUObject(this, &UMVVM_SettlerSlotDetails::HandleASCRegistered);
-
-	// Optional: reset displayed values while waiting
-	SetHealth(0.f);
-	SetMaxHealth(0.f);
-	SetHealthPct(0.f);
-
-	SetFood(0.f);
-	SetMaxFood(0.f);
-	SetFoodPct(0.f);
-
-	SetWater(0.f);
-	SetMaxWater(0.f);
-	SetWaterPct(0.f);
-
-	SetWarmth(0.f);
-	SetWarmthPct(0.f);
-
-	SetMorale(0.f);
-	SetMaxMorale(0.f);
-	SetMoralePct(0.f);
-	
-	// Primary Attributes
-	SetStrength(0.f);
-	SetIntelligence(0.f);
-	SetEndurance(0.f);
-	SetWillpower(0.f);
-	SetSocial(0.f);
-	
-	// Secondary Attributes
-	SetCarryCapacity(0.f);
-	SetTravelSpeed(0.f);
-	SetCraftSpeed(0.f);
-	SetGatherEfficiency(0.f);
-	SetInjuryResistance(0.f);
 }
 
 void UMVVM_SettlerSlotDetails::BeginDestroy()
@@ -179,68 +148,42 @@ void UMVVM_SettlerSlotDetails::HandleASCRegistered(UAbilitySystemComponent* InAS
 
 	BoundASC = InASC;
 
-	// Initial push (read current values)
+	// Initial push (read current values directly from the AttributeSet).
+	// The AttributeSet must be present - it is created in the Settler constructor alongside the ASC.
 	const UStoneAttributeSet* AS = BoundASC->GetSet<UStoneAttributeSet>();
-	if (AS)
+	if (!ensureMsgf(AS, TEXT("[SettlerSlotDetails] HandleASCRegistered: UStoneAttributeSet not found on ASC '%s'. Check Settler constructor."), *GetNameSafe(InASC)))
 	{
-		SetHealth(AS->GetHealth());
-		SetMaxHealth(AS->GetMaxHealth());
-
-		SetFood(AS->GetFood());
-		SetMaxFood(AS->GetMaxFood());
-
-		SetWater(AS->GetWater());
-		SetMaxWater(AS->GetMaxWater());
-
-		SetWarmth(AS->GetWarmth());
-
-		SetMorale(AS->GetMorale());
-		SetMaxMorale(AS->GetMaxMorale());
-		
-		// Primary Attriubtes
-		SetStrength(AS->GetStrength());
-		SetIntelligence(AS->GetIntelligence());
-		SetEndurance(AS->GetEndurance());
-		SetWillpower(AS->GetWillpower());
-		SetSocial(AS->GetSocial());
-		
-		// Secondary Attributes
-		SetCarryCapacity(AS->GetCarryCapacity());
-		SetTravelSpeed(AS->GetTravelSpeed());
-		SetCraftSpeed(AS->GetCraftSpeed());
-		SetGatherEfficiency(AS->GetGatherEfficiency());
-		SetInjuryResistance(AS->GetInjuryResistance());
+		return;
 	}
-	else
-	{
-		SetHealth(0.f);
-		SetMaxHealth(0.f);
 
-		SetFood(0.f);
-		SetMaxFood(0.f);
+	// Vitals
+	SetHealth(AS->GetHealth());
+	SetMaxHealth(AS->GetMaxHealth());
 
-		SetWater(0.f);
-		SetMaxWater(0.f);
+	SetFood(AS->GetFood());
+	SetMaxFood(AS->GetMaxFood());
 
-		SetWarmth(0.f);
+	SetWater(AS->GetWater());
+	SetMaxWater(AS->GetMaxWater());
 
-		SetMorale(0.f);
-		SetMaxMorale(0.f);
-		
-		//Primary Attriubtes
-		SetStrength(0.f);
-		SetIntelligence(0.f);
-		SetEndurance(0.f);
-		SetWillpower(0.f);
-		SetSocial(0.f);
-		
-		// Secondary Attributes
-		SetCarryCapacity(0.f);
-		SetTravelSpeed(0.f);
-		SetCraftSpeed(0.f);
-		SetGatherEfficiency(0.f);
-		SetInjuryResistance(0.f);
-	}
+	SetWarmth(AS->GetWarmth());
+
+	SetMorale(AS->GetMorale());
+	SetMaxMorale(AS->GetMaxMorale());
+
+	// Primary Attributes
+	SetStrength(AS->GetStrength());
+	SetIntelligence(AS->GetIntelligence());
+	SetEndurance(AS->GetEndurance());
+	SetWillpower(AS->GetWillpower());
+	SetSocial(AS->GetSocial());
+
+	// Secondary Attributes
+	SetCarryCapacity(AS->GetCarryCapacity());
+	SetTravelSpeed(AS->GetTravelSpeed());
+	SetCraftSpeed(AS->GetCraftSpeed());
+	SetGatherEfficiency(AS->GetGatherEfficiency());
+	SetInjuryResistance(AS->GetInjuryResistance());
 
 	RecomputePct();
 	InitializeAttributeIcons();

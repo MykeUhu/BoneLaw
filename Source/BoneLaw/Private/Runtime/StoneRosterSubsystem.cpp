@@ -2,17 +2,17 @@
 
 #include "Runtime/StoneRosterSubsystem.h"
 
+// Project
 #include "Core/Character/StoneSettlerChar.h"
+#include "Core/Components/StoneSettlerActionComponent.h"
 // Engine
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 
-// Project
 #include "AbilitySystemComponent.h"
 #include "GameplayTagsManager.h"
 #include "Core/Character/StoneBaseChar.h"
-#include "Core/Character/StoneSettlerChar.h"
 #include "Core/GameMode/StoneGameModeBase.h"
 
 void UStoneRosterSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -359,10 +359,11 @@ FSavedSettler UStoneRosterSubsystem::GatherSettlerStateFromPawn(const FGuid& Set
 	Gathered.LastKnownTransform = Pawn->GetActorTransform();
 
 	// Persisted tags: NEVER persist GE/transient tags.
-	// We only persist stable "State.*" + "Status.*" tags for the settler.
+	// IMPORTANT: In this project, "State.*" is BT control-flow granted by state GameplayEffects.
+	// Persisting State.* as loose tags breaks load (BT decorators stay true forever).
+	// Therefore we only persist stable tags like "Status.*".
 	if (UAbilitySystemComponent* ASC = Pawn->GetAbilitySystemComponent())
 	{
-		static const FGameplayTag StateRoot  = UGameplayTagsManager::Get().RequestGameplayTag(FName("State"),  /*ErrorIfNotFound*/ false);
 		static const FGameplayTag StatusRoot = UGameplayTagsManager::Get().RequestGameplayTag(FName("Status"), /*ErrorIfNotFound*/ false);
 
 		FGameplayTagContainer OwnedTags;
@@ -371,8 +372,7 @@ FSavedSettler UStoneRosterSubsystem::GatherSettlerStateFromPawn(const FGuid& Set
 		FGameplayTagContainer Persisted;
 		for (const FGameplayTag& Tag : OwnedTags)
 		{
-			if ((StateRoot.IsValid()  && Tag.MatchesTag(StateRoot)) ||
-				(StatusRoot.IsValid() && Tag.MatchesTag(StatusRoot)))
+			if (StatusRoot.IsValid() && Tag.MatchesTag(StatusRoot))
 			{
 				Persisted.AddTag(Tag);
 			}
@@ -380,7 +380,7 @@ FSavedSettler UStoneRosterSubsystem::GatherSettlerStateFromPawn(const FGuid& Set
 
 		Gathered.SettlerTags = Persisted;
 
-		UE_LOG(LogTemp, Log, TEXT("[StoneRoster] GatherSettlerStateFromPawn: Owned=%d Persisted(State/Status)=%d Pawn=%s"),
+		UE_LOG(LogTemp, Log, TEXT("[StoneRoster] GatherSettlerStateFromPawn: Owned=%d Persisted(Status)=%d Pawn=%s"),
 			OwnedTags.Num(), Persisted.Num(), *GetNameSafe(Pawn));
 	}
 
@@ -388,6 +388,12 @@ FSavedSettler UStoneRosterSubsystem::GatherSettlerStateFromPawn(const FGuid& Set
 	if (AStoneSettlerChar* SettlerPawn = Cast<AStoneSettlerChar>(Pawn))
 	{
 		Gathered.Attributes = SettlerPawn->GatherCurrentAttributes();
+
+		// ActionComponent is SSOT for action resume (prevents BT/BB cast spam after load)
+		if (UStoneSettlerActionComponent* ActionComp = SettlerPawn->GetActionComponent())
+		{
+			ActionComp->BuildSavedActionState(Gathered.ActionState);
+		}
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[StoneRoster] GatherSettlerStateFromPawn: SettlerId=%s Tags=%d Attributes=%d Pawn=%s"),

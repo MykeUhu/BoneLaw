@@ -3,6 +3,9 @@
 #include "EngineUtils.h"
 #include "Core/LoadScreenSaveGame.h"
 #include "Core/StoneGameInstance.h"
+#include "Core/Character/StoneSettlerChar.h"
+#include "Core/Components/StoneSettlerActionComponent.h"
+#include "Data/StoneActionDefinitionData.h"
 #include "Data/StoneSettlerNameDataAsset.h"
 #include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
@@ -29,7 +32,20 @@ void AStoneGameplayGameMode::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("[StoneGameplayGameMode] Save is null. SlotName='%s' SlotIndex=%d"),
 			*GI->LoadSlotName, GI->LoadSlotIndex);
-		return;
+			// Migration/repair MUST happen before the roster is initialized.
+	// (Invalid/duplicate SettlerIds will cause the roster to skip settlers and nothing will spawn.)
+	const bool bSaveRepaired = Save->MigrateIfNeeded();
+	if (bSaveRepaired)
+	{
+		const bool bSaved = UGameplayStatics::SaveGameToSlot(Save, GI->LoadSlotName, GI->LoadSlotIndex);
+		if (!bSaved)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[StoneGameplayGameMode] SaveGameToSlot FAILED after save migration/repair. SlotName='%s' SlotIndex=%d"),
+				*GI->LoadSlotName, GI->LoadSlotIndex);
+			return;
+		}
+	}
+return;
 	}
 
 	UStoneRosterSubsystem* Roster = GetWorld() ? GetWorld()->GetSubsystem<UStoneRosterSubsystem>() : nullptr;
@@ -79,16 +95,38 @@ void AStoneGameplayGameMode::BeginPlay()
 			*NewSettler.SettlerId.ToString(EGuidFormats::DigitsWithHyphensLower));
 	}
 
-	// Initialize roster + spawn first pawn
+	// Initialize roster + spawn all settler pawns
 	Roster->InitializeRoster(Save->SavedSettlers);
 
 	if (Save->SavedSettlers.Num() > 0)
 	{
-		Roster->GetOrSpawnSettlerPawn(Save->SavedSettlers[0].SettlerId);
+		for (const FSavedSettler& SettlerData : Save->SavedSettlers)
+		{
+			if (!SettlerData.SettlerId.IsValid())
+			{
+				continue;
+			}
+
+			AStoneBaseChar* Pawn = Roster->GetOrSpawnSettlerPawn(SettlerData.SettlerId);
+
+			// Bind autosave: whenever a settler finishes an action, we save gameplay state.
+			// This is the correct place (GameMode has authority over save/load).
+			if (AStoneSettlerChar* SettlerPawn = Cast<AStoneSettlerChar>(Pawn))
+			{
+				if (UStoneSettlerActionComponent* ActionComp = SettlerPawn->GetActionComponent())
+				{
+					ActionComp->OnActionFinishedNative.AddLambda(
+						[this](const UStoneActionDefinitionData* /*Action*/, bool /*bSuccess*/)
+						{
+							SaveGameplayState();
+						});
+				}
+			}
+		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneGameplayGameMode] SavedSettlers still empty after bootstrap. Cannot spawn pawn."));
+		UE_LOG(LogTemp, Error, TEXT("[StoneGameplayGameMode] SavedSettlers still empty after bootstrap. Cannot spawn pawns."));
 		return;
 	}
 

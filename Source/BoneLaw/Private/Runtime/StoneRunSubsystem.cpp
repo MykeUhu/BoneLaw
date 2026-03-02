@@ -1,7 +1,6 @@
 #include "Runtime/StoneRunSubsystem.h"
 
 #include "AbilitySystemComponent.h"
-#include "AbilitySystem/StoneAttributeSet.h"
 #include "Core/StoneGameplayTags.h"
 #include "Core/StonePlayerState.h"
 #include "Data/StoneEventPackData.h"
@@ -201,18 +200,13 @@ UAbilitySystemComponent* UStoneRunSubsystem::GetASC() const
 
 void UStoneRunSubsystem::RebuildSnapshot()
 {
-	Snapshot.Time = Time;
+	Snapshot.Time    = Time;
 	Snapshot.RunTags = RunTags;
 
-	if (UAbilitySystemComponent* ASC = GetASC())
-	{
-		Snapshot.Food   = ASC->GetNumericAttribute(UStoneAttributeSet::GetFoodAttribute());
-		Snapshot.Water  = ASC->GetNumericAttribute(UStoneAttributeSet::GetWaterAttribute());
-		Snapshot.Health = ASC->GetNumericAttribute(UStoneAttributeSet::GetHealthAttribute());
-		Snapshot.Morale = ASC->GetNumericAttribute(UStoneAttributeSet::GetMoraleAttribute());
-		Snapshot.Warmth = ASC->GetNumericAttribute(UStoneAttributeSet::GetWarmthAttribute());
-		Snapshot.Trust  = ASC->GetNumericAttribute(UStoneAttributeSet::GetTrustAttribute());
-	}
+	// NOTE: Vitals (Health, Food, Water, Morale, Warmth, Trust) are owned by each settler's
+	// pawn-side ASC (AuraEnemy pattern). The PlayerState ASC no longer holds vitals.
+	// Per-settler vitals are read directly by MVVM_SettlerSlotDetails via the settler's ASC.
+	// The global snapshot intentionally no longer aggregates vitals here.
 }
 
 void UStoneRunSubsystem::BroadcastSnapshot()

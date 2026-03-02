@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "Abilities/GameplayAbility.h"
+#include "Runtime/StoneActionTypes.h"
 #include "StoneTypes.generated.h"
 
 class UGameplayEffect;
@@ -348,6 +349,48 @@ struct FSavedAssignment
 	FSavedAssignment() = default;
 };
 
+USTRUCT(BlueprintType)
+struct BONELAW_API FSavedSettlerActionState
+{
+	GENERATED_BODY()
+
+	// Welche Action läuft?
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSoftObjectPtr<class UStoneActionDefinitionData> ActionDef;
+
+	// Determinismus für Encounter pre-roll
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 Seed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EStoneActionPhase Phase = EStoneActionPhase::None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float PhaseElapsed = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float TotalElapsed = 0.f;
+
+	// Encounter Resume
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bEncounterOpen = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSoftObjectPtr<class UStoneEventData> CurrentEncounterEvent;
+
+	// Pre-rolled Slots inkl. bTriggered
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FStonePlannedEncounter> OutboundSlots;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FStonePlannedEncounter> ReturnSlots;
+
+	bool HasRunningAction() const
+	{
+		return !ActionDef.IsNull() && Phase != EStoneActionPhase::None && Phase != EStoneActionPhase::Completed;
+	}
+};
+
 /**
  * FSavedSettler - Complete settler state for persistence
  * NO ASC/Actor pointers - only data and IDs.
@@ -390,6 +433,9 @@ struct FSavedSettler
 	bool bHasAssignment = false;
 
 	FSavedSettler() = default;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save")
+	FSavedSettlerActionState ActionState;
 };
 
 /**

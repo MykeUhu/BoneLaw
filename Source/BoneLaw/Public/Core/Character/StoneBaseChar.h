@@ -43,6 +43,7 @@ public:
 	
 	void SetCharacterClass(EStoneCharacterClass InClass) { CharacterClass = InClass; }
 	
+	
 protected:
 	UPROPERTY()
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;

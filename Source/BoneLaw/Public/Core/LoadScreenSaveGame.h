@@ -117,7 +117,7 @@ public:
      * Migrate legacy save data to the current schema, if needed.
      * Call immediately after loading the save game object, before gameplay consumes it.
      */
-    void MigrateIfNeeded();
+    bool MigrateIfNeeded();
     
     // --- “Run / Meta Progress” (dein Stone-Loop) ---
     UPROPERTY()

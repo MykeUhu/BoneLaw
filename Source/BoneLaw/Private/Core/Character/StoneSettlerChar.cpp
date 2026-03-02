@@ -27,18 +27,6 @@ AStoneSettlerChar::AStoneSettlerChar()
 	}
 }
 
-static const TCHAR* StoneRoleToString(const AActor* Actor)
-{
-	if (!Actor) return TEXT("null");
-	switch (Actor->GetLocalRole())
-	{
-	case ROLE_Authority:        return TEXT("Authority");
-	case ROLE_AutonomousProxy:  return TEXT("AutonomousProxy");
-	case ROLE_SimulatedProxy:   return TEXT("SimulatedProxy");
-	default:                   return TEXT("None");
-	}
-}
-
 void AStoneSettlerChar::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -61,117 +49,73 @@ void AStoneSettlerChar::SetRosterIdentity(const FGuid& InSettlerId, const FStrin
 void AStoneSettlerChar::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// Aura-style: don't init ActorInfo here for AI pawns (do it on possession/rep)
-	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] BeginPlay Pawn=%s Role=%s Ctrl=%s ASC=%s AS=%s (NO InitAbilityActorInfo here)"),
-		*GetName(),
-		StoneRoleToString(this),
-		*GetNameSafe(GetController()),
-		*GetNameSafe(AbilitySystemComponent),
-		*GetNameSafe(AttributeSet));
+	// GAS init happens in PossessedBy (authority) / OnRep_Controller (clients) - not here.
 }
 
 void AStoneSettlerChar::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 
-	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] PossessedBy Pawn=%s Role=%s NewCtrl=%s -> InitAbilityActorInfo()"),
-		*GetName(),
-		StoneRoleToString(this),
-		*GetNameSafe(NewController));
-
 	InitAbilityActorInfo();
 
 	if (!HasAuthority())
 	{
-		UE_LOG(LogTemp, Verbose, TEXT("[StoneSettlerChar] PossessedBy early-out (not authority). Pawn=%s"), *GetName());
 		return;
 	}
 
 	StoneAIController = Cast<AStoneAIController>(NewController);
-	if (StoneAIController && BehaviorTree)
+	if (StoneAIController && BehaviorTree && BehaviorTree->BlackboardAsset)
 	{
 		UBlackboardComponent* BB = StoneAIController->GetBlackboardComponent();
-		if (!BB)
+		if (!ensureMsgf(BB, TEXT("[StoneSettlerChar] PossessedBy: No BlackboardComponent. Pawn=%s Ctrl=%s"),
+			*GetName(), *GetNameSafe(StoneAIController)))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[StoneSettlerChar] No BlackboardComponent on AIController. Pawn=%s Ctrl=%s"),
-				*GetName(), *GetNameSafe(StoneAIController));
-		}
-		else if (!BehaviorTree->BlackboardAsset)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[StoneSettlerChar] BehaviorTree has no BlackboardAsset. Pawn=%s BT=%s"),
-				*GetName(), *GetNameSafe(BehaviorTree));
-		}
-		else
-		{
-			BB->InitializeBlackboard(*BehaviorTree->BlackboardAsset);
+			return;
 		}
 
-		const bool bRanBT = StoneAIController->RunBehaviorTree(BehaviorTree);
-		UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] RunBehaviorTree Pawn=%s BT=%s Success=%d"),
-			*GetName(), *GetNameSafe(BehaviorTree), bRanBT ? 1 : 0);
+		BB->InitializeBlackboard(*BehaviorTree->BlackboardAsset);
+
+		// Hard reset action keys on possess (fixes load/restart ghost state)
+		StoneAIController->ResetActionBlackboardKeys();
+
+		StoneAIController->RunBehaviorTree(BehaviorTree);
 	}
 }
 
 void AStoneSettlerChar::OnRep_Controller()
 {
 	Super::OnRep_Controller();
-
-	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] OnRep_Controller Pawn=%s Role=%s Ctrl=%s -> InitAbilityActorInfo()"),
-		*GetName(),
-		StoneRoleToString(this),
-		*GetNameSafe(GetController()));
-
 	InitAbilityActorInfo();
 }
 
 void AStoneSettlerChar::InitAbilityActorInfo()
 {
-	if (!AbilitySystemComponent || !AttributeSet)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneSettlerChar] InitAbilityActorInfo aborted: ASC or AttributeSet null. Pawn=%s ASC=%s AS=%s"),
-			*GetName(), *GetNameSafe(AbilitySystemComponent), *GetNameSafe(AttributeSet));
-		return;
-	}
+	check(AbilitySystemComponent);
+	check(AttributeSet);
 
 	AbilitySystemComponent->InitAbilityActorInfo(this, this);
 
-	UStoneAbilitySystemComponent* StoneASC = Cast<UStoneAbilitySystemComponent>(AbilitySystemComponent);
-	if (StoneASC)
+	if (UStoneAbilitySystemComponent* StoneASC = Cast<UStoneAbilitySystemComponent>(AbilitySystemComponent))
 	{
 		StoneASC->AbilityActorInfoSet();
 	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[StoneSettlerChar] InitAbilityActorInfo: ASC is not UStoneAbilitySystemComponent. Pawn=%s ASC=%s"),
-			*GetName(), *GetNameSafe(AbilitySystemComponent));
-	}
 
-	const FGameplayAbilityActorInfo* Info = AbilitySystemComponent->AbilityActorInfo.Get();
-	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] ActorInfo Pawn=%s Role=%s Valid=%d Owner=%s Avatar=%s Rep=%d RepMode=%d"),
-		*GetName(),
-		StoneRoleToString(this),
-		Info ? 1 : 0,
-		Info ? *GetNameSafe(Info->OwnerActor.Get()) : TEXT("null"),
-		Info ? *GetNameSafe(Info->AvatarActor.Get()) : TEXT("null"),
-		AbilitySystemComponent->GetIsReplicated() ? 1 : 0,
-		(int32)AbilitySystemComponent->ReplicationMode);
-
-	// Server-only defaults + once
 	if (HasAuthority() && !bDidDefaultInit)
 	{
-		UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] DefaultInit START Pawn=%s Class=%d Level=%d"),
-			*GetName(), (int32)CharacterClass, Level);
-
 		InitializeDefaultAttributes();
 		GiveStartupAbilities();
-
 		bDidDefaultInit = true;
-		
-		// Default state
 		SetState_Idle();
-		
-		UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] DefaultInit DONE Pawn=%s"), *GetName());
+	}
+
+	// If we received save data before possession/ActorInfo was ready, apply it now deterministically.
+	if (HasAuthority() && bHasDeferredSavedState && !bDidApplySavedState)
+	{
+		const FSavedSettler Copy = DeferredSavedState;
+		bHasDeferredSavedState = false;
+		DeferredSavedState = FSavedSettler();
+
+		ApplySavedState(Copy);
 	}
 
 	OnAscRegistered.Broadcast(AbilitySystemComponent);
@@ -179,30 +123,13 @@ void AStoneSettlerChar::InitAbilityActorInfo()
 
 void AStoneSettlerChar::InitializeDefaultAttributes() const
 {
-	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] InitializeDefaultAttributes Pawn=%s Class=%d Level=%d"),
-		*GetName(), (int32)CharacterClass, Level);
-
 	UStoneAbilitySystemLibrary::InitializeDefaultAttributes(this, CharacterClass, Level, AbilitySystemComponent);
 }
 
 void AStoneSettlerChar::GiveStartupAbilities() const
 {
-	UStoneAbilitySystemComponent* StoneASC = Cast<UStoneAbilitySystemComponent>(AbilitySystemComponent);
-	if (!StoneASC)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneSettlerChar] GiveStartupAbilities failed: ASC invalid. Pawn=%s"), *GetName());
-		return;
-	}
-
-	if (!StoneASC->AbilityActorInfo.IsValid())
-	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneSettlerChar] GiveStartupAbilities aborted: AbilityActorInfo invalid. Pawn=%s"), *GetName());
-		return;
-	}
-
-	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] GiveStartupAbilities Pawn=%s Class=%d"),
-		*GetName(), (int32)CharacterClass);
-
+	// CastChecked is safe here: constructor guarantees AbilitySystemComponent is UStoneAbilitySystemComponent.
+	UStoneAbilitySystemComponent* StoneASC = CastChecked<UStoneAbilitySystemComponent>(AbilitySystemComponent);
 	UStoneAbilitySystemLibrary::GiveStartupAbilities(this, StoneASC, CharacterClass);
 }
 
@@ -215,59 +142,53 @@ void AStoneSettlerChar::ApplySavedState(const FSavedSettler& SettlerData)
 {
 	if (!HasAuthority())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Settler] ApplySavedState skipped (no authority). Settler=%s"), *GetName());
-		return;
-	}
-	
-	UStoneAbilitySystemComponent* StoneASC = Cast<UStoneAbilitySystemComponent>(AbilitySystemComponent);
-	if (!StoneASC)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneSettlerChar] ApplySavedState failed: ASC invalid. Pawn=%s"), *GetName());
 		return;
 	}
 
-	if (!StoneASC->AbilityActorInfo.IsValid())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[StoneSettlerChar] ApplySavedState: ActorInfo invalid -> re-init. Pawn=%s"), *GetName());
-		InitAbilityActorInfo();
-	}
+	checkf(AbilitySystemComponent, TEXT("[StoneSettlerChar] ApplySavedState: ASC is null. Pawn=%s"), *GetName());
+	checkf(AttributeSet, TEXT("[StoneSettlerChar] ApplySavedState: AttributeSet is null. Pawn=%s"), *GetName());
 
-	if (!StoneASC->AbilityActorInfo.IsValid())
-	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneSettlerChar] ApplySavedState aborted: ActorInfo still invalid. Pawn=%s"), *GetName());
-		return;
-	}
-
-	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] ApplySavedState Pawn=%s Tags=%d Attr=%d Abilities=%d"),
-		*GetName(),
-		SettlerData.SettlerTags.Num(),
-		SettlerData.Attributes.Num(),
-		SettlerData.GrantedAbilities.Num());
-
+	// If the save data contains no state, the defaults applied in InitAbilityActorInfo are correct (new game).
 	const bool bHasAnyState =
 		(SettlerData.SettlerTags.Num() > 0) ||
 		(SettlerData.Attributes.Num() > 0) ||
-		(SettlerData.GrantedAbilities.Num() > 0);
+		(SettlerData.GrantedAbilities.Num() > 0) ||
+		(SettlerData.ActionState.HasRunningAction());
 
 	if (!bHasAnyState)
 	{
-		UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] ApplySavedState: empty -> keep defaults. Pawn=%s"), *GetName());
+		return;
+	}
+
+	// ApplySavedState can be called immediately after SpawnActor from the RosterSubsystem.
+	// Depending on BP defaults (AutoPossessAI) and timing, PossessedBy/InitAbilityActorInfo may not have run yet.
+	// In that case, we must defer until ActorInfo is valid (SSOT init order).
+	UStoneAbilitySystemComponent* StoneASC = CastChecked<UStoneAbilitySystemComponent>(AbilitySystemComponent);
+
+	if (!StoneASC->AbilityActorInfo.IsValid())
+	{
+		DeferredSavedState = SettlerData;
+		bHasDeferredSavedState = true;
+
+		UE_LOG(LogTemp, Warning, TEXT("[StoneSettlerChar] ApplySavedState deferred: ActorInfo invalid. Pawn=%s"), *GetName());
 		return;
 	}
 
 	// -------------------------
-	// Tags (PERSIST ONLY)
+	// Tags: only persist stable tags (Status.* etc.).
+	//
+	// IMPORTANT: "State.*" is BT control-flow and is granted by state GameplayEffects in this project.
+	// Persisting it as *loose* tags will make BT decorators think the settler is stuck in that state forever.
+	// State is restored deterministically from the ActionComponent (and other runtime systems), not from save tags.
 	// -------------------------
-	static const FGameplayTag StateRoot  = UGameplayTagsManager::Get().RequestGameplayTag(FName("State"),  /*ErrorIfNotFound*/ false);
-	static const FGameplayTag StatusRoot = UGameplayTagsManager::Get().RequestGameplayTag(FName("Status"), /*ErrorIfNotFound*/ false);
+	static const FGameplayTag StatusRoot = UGameplayTagsManager::Get().RequestGameplayTag(FName("Status"), false);
 
-	auto FilterPersistedStateTags = [&](const FGameplayTagContainer& In) -> FGameplayTagContainer
+	auto FilterPersistedTags = [&](const FGameplayTagContainer& In) -> FGameplayTagContainer
 	{
 		FGameplayTagContainer Out;
 		for (const FGameplayTag& Tag : In)
 		{
-			if ((StateRoot.IsValid()  && Tag.MatchesTag(StateRoot)) ||
-				(StatusRoot.IsValid() && Tag.MatchesTag(StatusRoot)))
+			if (StatusRoot.IsValid() && Tag.MatchesTag(StatusRoot))
 			{
 				Out.AddTag(Tag);
 			}
@@ -275,79 +196,104 @@ void AStoneSettlerChar::ApplySavedState(const FSavedSettler& SettlerData)
 		return Out;
 	};
 
-	if (SettlerData.SettlerTags.Num() > 0)
+	// Backward-compat safety:
+	// Older saves may have persisted "State.*" as loose tags (which breaks BT state after load).
+	// Remove any loose State tags first. This does NOT affect GE-granted State tags.
+	static const FGameplayTag StateRoot = UGameplayTagsManager::Get().RequestGameplayTag(FName("State"), false);
+	if (StateRoot.IsValid())
 	{
-		// Remove old persisted tags (only loose removal; GE-granted tags are unaffected).
 		FGameplayTagContainer OwnedNow;
 		StoneASC->GetOwnedGameplayTags(OwnedNow);
 
-		const FGameplayTagContainer PersistedNow = FilterPersistedStateTags(OwnedNow);
-		if (PersistedNow.Num() > 0)
+		FGameplayTagContainer StateTags;
+		for (const FGameplayTag& Tag : OwnedNow)
 		{
-			StoneASC->RemoveLooseGameplayTags(PersistedNow);
+			if (Tag.MatchesTag(StateRoot))
+			{
+				StateTags.AddTag(Tag);
+			}
 		}
 
-		// Apply persisted saved tags
-		const FGameplayTagContainer PersistedSaved = FilterPersistedStateTags(SettlerData.SettlerTags);
-		if (PersistedSaved.Num() > 0)
+		if (StateTags.Num() > 0)
 		{
-			StoneASC->AddLooseGameplayTags(PersistedSaved);
+			StoneASC->RemoveLooseGameplayTags(StateTags);
+		}
+	}
+
+	if (SettlerData.SettlerTags.Num() > 0)
+	{
+		FGameplayTagContainer OwnedNow;
+		StoneASC->GetOwnedGameplayTags(OwnedNow);
+
+		const FGameplayTagContainer ToRemove = FilterPersistedTags(OwnedNow);
+		if (ToRemove.Num() > 0)
+		{
+			StoneASC->RemoveLooseGameplayTags(ToRemove);
 		}
 
-		UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] ApplySavedState: tags cleared=%d applied=%d (State/Status only). Pawn=%s"),
-			PersistedNow.Num(), PersistedSaved.Num(), *GetName());
+		const FGameplayTagContainer ToApply = FilterPersistedTags(SettlerData.SettlerTags);
+		if (ToApply.Num() > 0)
+		{
+			StoneASC->AddLooseGameplayTags(ToApply);
+		}
 	}
 
 	// -------------------------
-	// Attributes
+	// Attributes: tag-driven, covers all attribute groups
 	// -------------------------
-	const UStoneAttributeSet* AttrSet = Cast<UStoneAttributeSet>(AttributeSet);
-	if (AttrSet && SettlerData.Attributes.Num() > 0)
+	const UStoneAttributeSet* AttrSet = CastChecked<UStoneAttributeSet>(AttributeSet);
+
+	for (const FSavedAttribute& SavedAttr : SettlerData.Attributes)
 	{
-		int32 AppliedCount = 0;
-
-		for (const FSavedAttribute& SavedAttr : SettlerData.Attributes)
+		if (!SavedAttr.AttributeTag.IsValid())
 		{
-			if (!SavedAttr.AttributeTag.IsValid())
-			{
-				continue;
-			}
-
-			FGameplayAttribute GameplayAttr;
-			if (AttrSet->GetAttributeFromTag(SavedAttr.AttributeTag, GameplayAttr) && GameplayAttr.IsValid())
-			{
-				StoneASC->SetNumericAttributeBase(GameplayAttr, SavedAttr.Value);
-				AppliedCount++;
-			}
+			continue;
 		}
 
-		UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] ApplySavedState: applied %d/%d attributes. Pawn=%s"),
-			AppliedCount, SettlerData.Attributes.Num(), *GetName());
+		FGameplayAttribute GameplayAttr;
+		if (AttrSet->GetAttributeFromTag(SavedAttr.AttributeTag, GameplayAttr) && GameplayAttr.IsValid())
+		{
+			StoneASC->SetNumericAttributeBase(GameplayAttr, SavedAttr.Value);
+		}
 	}
 
 	// -------------------------
 	// Abilities
 	// -------------------------
-	if (SettlerData.GrantedAbilities.Num() > 0)
+	for (const FSavedAbility& SavedAbility : SettlerData.GrantedAbilities)
 	{
-		int32 GrantedCount = 0;
-
-		for (const FSavedAbility& SavedAbility : SettlerData.GrantedAbilities)
+		if (SavedAbility.GameplayAbility)
 		{
-			if (SavedAbility.GameplayAbility)
+			StoneASC->GiveAbility(FGameplayAbilitySpec(SavedAbility.GameplayAbility, SavedAbility.AbilityLevel, INDEX_NONE));
+		}
+	}
+
+	// --- Action resume (SSOT) ---
+	if (ActionComponent)
+	{
+		const bool bRestored = ActionComponent->RestoreFromSavedActionState(SettlerData.ActionState);
+
+		if (bRestored)
+		{
+			// Deterministic BT state restore from the action phase.
+			switch (ActionComponent->GetPhase())
 			{
-				StoneASC->GiveAbility(FGameplayAbilitySpec(SavedAbility.GameplayAbility, SavedAbility.AbilityLevel, INDEX_NONE));
-				GrantedCount++;
+			case EStoneActionPhase::Outbound: SetState_TravelToActionStart(); break;
+			case EStoneActionPhase::Return:   SetState_TravelReturning();     break;
+			case EStoneActionPhase::Arrival:  // fallthrough
+			default:                          SetState_ActionRunning();      break;
 			}
 		}
-
-		UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] ApplySavedState: granted %d/%d abilities. Pawn=%s"),
-			GrantedCount, SettlerData.GrantedAbilities.Num(), *GetName());
+		else
+		{
+			// Never keep transient travel/action states after load without runtime/def
+			SetState_Idle();
+		}
 	}
 
 	bDidApplySavedState = true;
-	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] ApplySavedState DONE Pawn=%s"), *GetName());
 }
+
 
 TArray<FSavedAttribute> AStoneSettlerChar::GatherCurrentAttributes() const
 {
@@ -355,26 +301,19 @@ TArray<FSavedAttribute> AStoneSettlerChar::GatherCurrentAttributes() const
 
 	if (!HasAuthority())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[StoneSettlerChar] GatherCurrentAttributes called without authority. Pawn=%s"), *GetName());
 		return Result;
 	}
 
 	const UStoneAbilitySystemComponent* StoneASC = Cast<UStoneAbilitySystemComponent>(AbilitySystemComponent);
-	if (!StoneASC)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneSettlerChar] GatherCurrentAttributes: ASC invalid. Pawn=%s"), *GetName());
-		return Result;
-	}
-
 	const UStoneAttributeSet* AttrSet = Cast<UStoneAttributeSet>(AttributeSet);
-	if (!AttrSet)
+
+	if (!StoneASC || !AttrSet)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[StoneSettlerChar] GatherCurrentAttributes: AttributeSet invalid. Pawn=%s"), *GetName());
 		return Result;
 	}
 
-	// Iterate all registered tag->attribute mappings (covers Primary, Secondary, Vital, Culture, Knowledge, Worldline).
-	// This is intentionally tag-driven so no settler-specific hardcoding is needed.
+	// Tag-driven iteration covers Primary, Secondary, Vital, Culture, Knowledge, Worldline.
+	// No settler-specific hardcoding needed.
 	for (const TPair<FGameplayTag, TStaticFuncPtr<FGameplayAttribute()>>& Pair : AttrSet->TagsToAttributes)
 	{
 		const FGameplayTag& Tag = Pair.Key;
@@ -389,19 +328,14 @@ TArray<FSavedAttribute> AStoneSettlerChar::GatherCurrentAttributes() const
 			continue;
 		}
 
-		// Skip meta attributes (IncomingDamage, IncomingHeal) - these are transient, never persisted.
-		const FString AttrName = Attr.AttributeName;
-		if (AttrName.StartsWith(TEXT("Incoming")))
+		// Skip transient meta attributes — never persisted.
+		if (Attr.AttributeName.StartsWith(TEXT("Incoming")))
 		{
 			continue;
 		}
 
-		const float Value = StoneASC->GetNumericAttribute(Attr);
-		Result.Add(FSavedAttribute(Tag, Value));
+		Result.Add(FSavedAttribute(Tag, StoneASC->GetNumericAttribute(Attr)));
 	}
-
-	UE_LOG(LogTemp, Log, TEXT("[StoneSettlerChar] GatherCurrentAttributes: gathered %d attributes. Pawn=%s"),
-		Result.Num(), *GetName());
 
 	return Result;
 }

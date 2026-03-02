@@ -26,6 +26,29 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category="Stone|Action")
 	UStoneSettlerActionComponent* GetActionComponent() const;
+	
+	// --- AI | Blackboard keys -----------------------------------------------------
+
+	UPROPERTY(EditDefaultsOnly, Category="AI|Blackboard")
+	FName BBKey_ActionDef = TEXT("ActionDef");
+
+	UPROPERTY(EditDefaultsOnly, Category="AI|Blackboard")
+	FName BBKey_TargetActor = TEXT("TargetActor");
+
+	UPROPERTY(EditDefaultsOnly, Category="AI|Blackboard")
+	FName BBKey_TravelLocation = TEXT("TravelLocation");
+
+	UPROPERTY(EditDefaultsOnly, Category="AI|Blackboard")
+	FName BBKey_RandomWanderLocation = TEXT("RandomWanderLocation");
+
+	UPROPERTY(EditDefaultsOnly, Category="AI|Blackboard")
+	FName BBKey_HomeLocation = TEXT("HomeLocation");
+
+	UPROPERTY(EditDefaultsOnly, Category="AI|Blackboard")
+	FName BBKey_TravelState = TEXT("TravelState");
+
+	UFUNCTION(BlueprintCallable, Category="AI|Blackboard")
+	void ResetActionBlackboardKeys();
 
 protected:
 	UPROPERTY()
